@@ -16,7 +16,7 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 <!-- Add a short GIF of the app once built -->
 ![demo](docs/demo.gif)
 
-**Live demo:** <pending>
+**Live demo:** pending
 
 ## ✨ Features
 
