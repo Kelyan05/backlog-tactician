@@ -36,7 +36,7 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 | Backend | Node.js + Express + TypeScript | Shared language across the stack |
 | Database | PostgreSQL | Relational data (users, games, sessions) |
 | Integrations | Steam Web API, how-long-to-beat data | Real library + completion-time data |
-| Cache | Redis *(optional)* | Avoid re-hitting external APIs |
+| Cache | Redis | Avoid re-hitting external APIs |
 | Infra | Docker, GitHub Actions | Reproducible builds + CI on every push |
 | Testing | Jest | Unit tests for the scheduling engine |
 
