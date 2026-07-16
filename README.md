@@ -49,8 +49,8 @@ The **scheduling engine** is the heart of the project: given a set of games (eac
 ```bash
 git clone https://github.com/Kelyan05/backlog-tactician.git
 cd backlog-tactician
-cp .env.example .env        # add your Steam API key + database URL
-docker compose up           # starts the API, database, and frontend
+npm install
+npm run dev        # starts the Express server on localhost:3000
 ```
 
 Then open `http://localhost:5173`.
@@ -58,7 +58,7 @@ Then open `http://localhost:5173`.
 ## 🧪 Testing
 
 ```bash
-npm test
+"test": "echo 'Tests ship with the scheduling engine in Week 3 — see roadmap'"
 ```
 
 Unit tests focus on the scheduling engine — the interesting, testable logic (budget edge cases, empty backlog, a single game that overruns the week).
