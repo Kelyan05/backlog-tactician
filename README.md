@@ -3,7 +3,6 @@
 > Turn your gaming backlog into an optimised weekly play plan.
 
 ![Status](https://img.shields.io/badge/status-in%20progress-yellow)
-![CI](https://img.shields.io/github/actions/workflow/status/Kelyan05/backlog-tactician/ci.yml?branch=main)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
@@ -11,10 +10,7 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 
 ## 🎬 Demo
 
-<!-- Add a short GIF of the app once built -->
-![demo](docs/demo.gif)
-
-**Live demo:** pending
+*Demo GIF and live link coming once the scheduling engine ships (Week 3 of the build schedule).*
 
 ## ✨ Features
 
