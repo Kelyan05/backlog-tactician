@@ -1,5 +1,3 @@
-<!-- TEMPLATE: replace <...> placeholders, add real screenshots/links, and tick the checkboxes as you build. Delete this comment before publishing. -->
-
 # 🎮 Backlog Tactician
 
 > Turn your gaming backlog into an optimised weekly play plan.
