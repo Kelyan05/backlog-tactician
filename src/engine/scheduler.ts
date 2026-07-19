@@ -57,7 +57,9 @@ export function generatePlan(games: SchedulableGame[], hoursAvailable: number, n
 
   for (const { game, score, completionBonus, recencyPenalty, remainingHours } of scored) {
     if (hoursUsed + remainingHours > hoursAvailable) {
-      break;
+      // Skip, don't stop — a smaller game further down the sorted-by-density
+      // list may still fit in whatever budget is left (see docs/scheduling.md).
+      continue;
     }
 
     hoursUsed += remainingHours;
