@@ -3,6 +3,7 @@
 > Turn your gaming backlog into an optimised weekly play plan.
 
 ![Status](https://img.shields.io/badge/status-in%20progress-yellow)
+![CI](https://github.com/Kelyan05/backlog-tactician/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
