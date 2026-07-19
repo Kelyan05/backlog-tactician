@@ -6,6 +6,7 @@ interface SteamOwnedGame {
   appid: number;
   name: string;
   playtime_forever: number;
+  rtime_last_played?: number;
 }
 
 interface SteamOwnedGamesResponse {
@@ -45,16 +46,20 @@ export async function importOwnedGames(userId: number): Promise<{ imported: numb
   const games = await fetchOwnedGames();
 
   for (const game of games) {
+    const lastPlayedAt = game.rtime_last_played ? new Date(game.rtime_last_played * 1000) : null;
+
     await prisma.game.upsert({
       where: { steamAppId: game.appid },
       update: {
         name: game.name,
         playtimeMinutes: game.playtime_forever,
+        lastPlayedAt,
       },
       create: {
         steamAppId: game.appid,
         name: game.name,
         playtimeMinutes: game.playtime_forever,
+        lastPlayedAt,
         timeToBeatSource: EstimateSource.NONE,
         userId,
       },

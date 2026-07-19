@@ -26,6 +26,7 @@ model Game {
   playtimeMinutes  Int      @default(0)
   timeToBeatHours  Float?
   timeToBeatSource String?
+  lastPlayedAt     DateTime?
   createdAt        DateTime @default(now())
 
   userId Int

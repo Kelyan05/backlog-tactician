@@ -7,6 +7,9 @@ import { getOrCreateOwner } from "./lib/currentUser.ts";
 import { importOwnedGames } from "./services/steamService.ts";
 import { enrichGamesWithTimeToBeat } from "./services/igdbService.ts";
 import { EstimateSource } from "./lib/estimateSource.ts";
+import { createPlan, getPlan, listPlans } from "./services/planService.ts";
+
+const createPlanSchema = z.object({ hoursAvailable: z.number().positive() }).strict();
 
 // timeToBeatSource is never client-settable directly — it's derived from
 // whether timeToBeatHours was just set, cleared, or left alone (see PATCH below).
@@ -80,6 +83,36 @@ app.post('/api/enrich/igdb', async (req: Request, res: Response) => {
   const owner = await getOrCreateOwner();
   const result = await enrichGamesWithTimeToBeat(owner.id);
   res.json(result);
+});
+
+// Generate a plan from the current library and persist it (Plan + PlanEntries, atomically)
+app.post('/api/plans', async (req: Request, res: Response) => {
+  const { hoursAvailable } = createPlanSchema.parse(req.body);
+  const owner = await getOrCreateOwner();
+  const plan = await createPlan(owner.id, hoursAvailable);
+  res.status(201).json(plan);
+});
+
+// List all plans for the app owner, most recent first
+app.get('/api/plans', async (req: Request, res: Response) => {
+  const owner = await getOrCreateOwner();
+  const plans = await listPlans(owner.id);
+  res.json(plans);
+});
+
+// Fetch a single plan with its ordered entries
+app.get('/api/plans/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    throw new HttpError(400, 'Invalid plan id');
+  }
+
+  const plan = await getPlan(id);
+  if (!plan) {
+    throw new HttpError(404, 'Not found');
+  }
+
+  res.json(plan);
 });
 
 // Unmatched routes
