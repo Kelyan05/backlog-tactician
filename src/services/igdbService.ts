@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { prisma } from "../lib/prisma.ts";
 
 const TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 const API_BASE = "https://api.igdb.com/v4";
@@ -91,4 +92,26 @@ export async function findTimeToBeatHours(steamAppId: number, name: string): Pro
   const gameId = (await findGameIdBySteamAppId(steamAppId)) ?? (await findGameIdByName(name));
   if (!gameId) return null;
   return getTimeToBeatHours(gameId);
+}
+
+// Only fills genuine gaps — never overwrites an estimate that's already set,
+// whether it came from a prior IGDB match or a manual override.
+export async function enrichGamesWithTimeToBeat(userId: number): Promise<{ enriched: number; total: number }> {
+  const games = await prisma.game.findMany({
+    where: { userId, timeToBeatHours: null },
+  });
+
+  let enriched = 0;
+  for (const game of games) {
+    const hours = await findTimeToBeatHours(game.steamAppId, game.name);
+    if (hours !== null) {
+      await prisma.game.update({
+        where: { id: game.id },
+        data: { timeToBeatHours: hours, timeToBeatSource: "IGDB" },
+      });
+      enriched++;
+    }
+  }
+
+  return { enriched, total: games.length };
 }
