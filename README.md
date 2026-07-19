@@ -72,6 +72,25 @@ docker compose down
 
 Practice SQL (create/insert/join, one-to-many `games` → `sessions`) lives in [`sql/practice_warmup.sql`](sql/practice_warmup.sql).
 
+### Steam library import
+
+1. Grab a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (any domain name works for personal use).
+2. Find your 64-bit SteamID (e.g. via [steamid.io](https://steamid.io)) — profile must be public, or at least have game details visible, for `GetOwnedGames` to return anything.
+3. Set both in `.env`:
+
+   ```
+   STEAM_API_KEY=your-key-here
+   STEAM_ID=your-steamid64-here
+   ```
+
+4. With the server running, trigger the import:
+
+   ```bash
+   curl -X POST http://localhost:3000/api/import/steam
+   ```
+
+This upserts your owned games by `steamAppId` — safe to re-run any time; it refreshes `name`/`playtimeMinutes` but never touches `timeToBeatHours`/`timeToBeatSource`, so IGDB or manual estimates survive re-imports. **Never commit `.env`** — it holds a real API key and is already gitignored.
+
 ## 🧪 Testing
 
 ```bash
