@@ -10,6 +10,7 @@ import { EstimateSource } from "./lib/estimateSource.ts";
 import { createPlan, getPlan, listPlans } from "./services/planService.ts";
 
 const createPlanSchema = z.object({ hoursAvailable: z.number().positive() }).strict();
+const playSessionSchema = z.object({ hoursPlayed: z.number().positive() }).strict();
 
 // timeToBeatSource is never client-settable directly — it's derived from
 // whether timeToBeatHours was just set, cleared, or left alone (see PATCH below).
@@ -68,6 +69,28 @@ app.patch('/api/games/:id', async (req: Request, res: Response) => {
     where: { id },
     data,
   });
+  res.json(game);
+});
+
+// Log a play session against a game — advances playtime and lastPlayedAt so
+// the next generated plan reflects real progress (smaller remainingHours,
+// bigger completionBonus, and the recency penalty kicking in).
+app.post('/api/games/:id/play-sessions', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    throw new HttpError(400, 'Invalid game id');
+  }
+
+  const { hoursPlayed } = playSessionSchema.parse(req.body);
+
+  const game = await prisma.game.update({
+    where: { id },
+    data: {
+      playtimeMinutes: { increment: Math.round(hoursPlayed * 60) },
+      lastPlayedAt: new Date(),
+    },
+  });
+
   res.json(game);
 });
 

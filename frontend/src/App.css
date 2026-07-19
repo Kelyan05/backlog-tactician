@@ -28,3 +28,14 @@ form {
   color: #666;
   font-size: 0.9em;
 }
+
+.mark-played {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.mark-played input {
+  width: 4rem;
+}

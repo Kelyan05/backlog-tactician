@@ -11,6 +11,53 @@ function explain(entry: PlanEntry): string {
   return reasons.join('; ')
 }
 
+function PlanEntryRow({ entry }: { entry: PlanEntry }) {
+  const [hoursPlayed, setHoursPlayed] = useState('1')
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const markPlayed = () => {
+    const value = Number(hoursPlayed)
+    if (!Number.isFinite(value) || value <= 0) {
+      setStatus('error')
+      return
+    }
+
+    setStatus('saving')
+    fetch(`/api/games/${entry.game.id}/play-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hoursPlayed: value }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+        setStatus('saved')
+      })
+      .catch(() => setStatus('error'))
+  }
+
+  return (
+    <li>
+      <strong>{entry.game.name}</strong> — {entry.allocatedHours.toFixed(1)}h
+      <div className="why">{explain(entry)}</div>
+      <div className="mark-played">
+        <input
+          type="number"
+          min="0.25"
+          step="0.25"
+          value={hoursPlayed}
+          onChange={(event) => setHoursPlayed(event.target.value)}
+          aria-label={`Hours played on ${entry.game.name}`}
+        />
+        <button type="button" onClick={markPlayed} disabled={status === 'saving'}>
+          Mark played
+        </button>
+        {status === 'saved' && <span> Logged — regenerate your plan to see it reflected.</span>}
+        {status === 'error' && <span role="alert"> Couldn't log that session.</span>}
+      </div>
+    </li>
+  )
+}
+
 function PlanResult({ plan }: { plan: Plan }) {
   if (plan.entries.length === 0) {
     return <p>Nothing fits that budget yet — try a bigger number, or add time-to-beat estimates to more games.</p>
@@ -26,10 +73,7 @@ function PlanResult({ plan }: { plan: Plan }) {
       </p>
       <ol>
         {plan.entries.map((entry) => (
-          <li key={entry.id}>
-            <strong>{entry.game.name}</strong> — {entry.allocatedHours.toFixed(1)}h
-            <div className="why">{explain(entry)}</div>
-          </li>
+          <PlanEntryRow key={entry.id} entry={entry} />
         ))}
       </ol>
     </div>
