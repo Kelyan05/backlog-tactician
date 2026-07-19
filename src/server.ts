@@ -14,8 +14,8 @@ app.get('/', (req: Request, res: Response) => {
 
 // Health route
 app.get('/health', (req: Request, res: Response) => {
-    res.send('status: ok');
-  });
+  res.json({ status: 'ok' });
+});
 
 // Start the server
 app.listen(port, () => {
