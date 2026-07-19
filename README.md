@@ -55,6 +55,23 @@ npm run dev        # starts the Express server on localhost:3000
 
 Then open `http://localhost:5173`.
 
+### PostgreSQL (local)
+
+```bash
+docker compose up -d db          # starts Postgres 16 on localhost:5432
+docker compose exec db psql -U backlog -d backlog_tactician
+```
+
+Set `DATABASE_URL` in `.env` to `postgresql://backlog:backlog@localhost:5432/backlog_tactician`.
+
+To stop and remove the container (data persists in the `pgdata` volume):
+
+```bash
+docker compose down
+```
+
+Practice SQL (create/insert/join, one-to-many `games` → `sessions`) lives in [`sql/practice_warmup.sql`](sql/practice_warmup.sql).
+
 ## 🧪 Testing
 
 ```bash
