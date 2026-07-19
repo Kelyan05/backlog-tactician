@@ -75,6 +75,34 @@ docker compose down
 
 Practice SQL (create/insert/join, one-to-many `games` → `sessions`) lives in [`sql/practice_warmup.sql`](sql/practice_warmup.sql).
 
+### Docker Compose (full API + DB stack)
+
+For running the whole backend without a local Node install:
+
+```bash
+docker compose up --build
+```
+
+One command brings up Postgres and the API together: the `api` service waits
+for the database's healthcheck, then applies any pending migrations
+(`prisma migrate deploy`) before starting the server — so a completely fresh
+`pgdata` volume is never a manual extra step. The API reaches Postgres over
+the compose network at `db:5432`, not `localhost`, since containers resolve
+each other by service name rather than the host's loopback address.
+
+Real secrets (`STEAM_API_KEY`, `STEAM_ID`, `IGDB_CLIENT_ID`,
+`IGDB_CLIENT_SECRET`) still come from your local `.env` via `env_file`; only
+`DATABASE_URL` is overridden to point at the in-network `db` host.
+
+The frontend isn't containerized yet — it's a Vite dev server whose proxy
+currently points at `localhost:3000`, so for now run it separately with
+`cd frontend && npm run dev`.
+
+```bash
+docker compose down       # stop the stack, keep the pgdata volume
+docker compose down -v    # stop the stack and delete all data
+```
+
 ### Steam library import
 
 1. Grab a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (any domain name works for personal use).

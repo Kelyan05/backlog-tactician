@@ -10,6 +10,26 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backlog -d backlog_tactician"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Overrides .env's DATABASE_URL: inside the compose network the API
+      # reaches Postgres by service name ("db"), not localhost.
+      DATABASE_URL: postgresql://backlog:backlog@db:5432/backlog_tactician
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:

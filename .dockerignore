@@ -1,0 +1,5 @@
+node_modules
+frontend
+.git
+.env
+src/generated
