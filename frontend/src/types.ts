@@ -5,6 +5,7 @@ export interface Game {
   timeToBeatHours: number | null;
   timeToBeatSource: string | null;
   lastPlayedAt: string | null;
+  genre: string | null;
 }
 
 export interface PlanEntry {
@@ -14,6 +15,7 @@ export interface PlanEntry {
   score: number;
   completionBonus: number;
   recencyPenalty: number;
+  varietyBonus: number;
   game: Game;
 }
 

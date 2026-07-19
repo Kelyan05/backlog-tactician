@@ -5,7 +5,7 @@ import { HttpError } from "./lib/errors.ts";
 import { errorHandler } from "./middleware/errorHandler.ts";
 import { getOrCreateOwner } from "./lib/currentUser.ts";
 import { importOwnedGames } from "./services/steamService.ts";
-import { enrichGamesWithTimeToBeat } from "./services/igdbService.ts";
+import { enrichGames } from "./services/igdbService.ts";
 import { EstimateSource } from "./lib/estimateSource.ts";
 import { createPlan, getPlan, listPlans } from "./services/planService.ts";
 
@@ -104,7 +104,7 @@ app.post('/api/import/steam', async (req: Request, res: Response) => {
 // Enrich games missing a time-to-beat estimate via IGDB
 app.post('/api/enrich/igdb', async (req: Request, res: Response) => {
   const owner = await getOrCreateOwner();
-  const result = await enrichGamesWithTimeToBeat(owner.id);
+  const result = await enrichGames(owner.id);
   res.json(result);
 });
 

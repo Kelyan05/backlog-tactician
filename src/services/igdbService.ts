@@ -132,20 +132,45 @@ async function getTimeToBeatHoursBatch(gameIds: number[]): Promise<Map<number, n
   return map;
 }
 
+// A game can have several IGDB genres — we only need one representative
+// genre for the scheduler's variety bonus, so we take the first.
+async function getGenresBatch(gameIds: number[]): Promise<Map<number, string>> {
+  if (gameIds.length === 0) return new Map();
+
+  const results = await igdbQuery<{ id: number; genres?: { name: string }[] }[]>(
+    "games",
+    `fields id,genres.name; where id = (${gameIds.join(",")}); limit ${gameIds.length};`,
+  );
+
+  const map = new Map<number, string>();
+  for (const result of results) {
+    const primaryGenre = result.genres?.[0]?.name;
+    if (primaryGenre) {
+      map.set(result.id, primaryGenre);
+    }
+  }
+  return map;
+}
+
 interface SkippedGame {
   steamAppId: number;
   name: string;
   reason: string;
 }
 
-// Only fills genuine gaps — never overwrites an estimate that's already set,
-// whether it came from a prior IGDB match or a manual override. Games that
-// fail to look up (rate limit exhausted its one retry, network error, no
-// IGDB match at all) are logged and skipped rather than aborting the run.
-export async function enrichGamesWithTimeToBeat(
+// Only fills genuine gaps — never overwrites an estimate or genre that's
+// already set, whether it came from a prior IGDB match or a manual override.
+// Scoped to games missing EITHER a time-to-beat estimate OR a genre, since
+// a game can have one filled in without the other (e.g. a MANUAL estimate
+// from before genre tracking existed). Games that fail to look up (rate
+// limit exhausted its one retry, network error, no IGDB match at all) are
+// logged and skipped rather than aborting the run.
+export async function enrichGames(
   userId: number,
 ): Promise<{ enriched: number; total: number; skipped: SkippedGame[] }> {
-  const games = await prisma.game.findMany({ where: { userId, timeToBeatHours: null } });
+  const games = await prisma.game.findMany({
+    where: { userId, OR: [{ timeToBeatHours: null }, { genre: null }] },
+  });
   const skipped: SkippedGame[] = [];
   let enriched = 0;
 
@@ -167,16 +192,27 @@ export async function enrichGamesWithTimeToBeat(
       }
 
       const allGameIds = [...gameIdBySteamAppId.values(), ...nameMatchedGameId.values()];
-      const hoursByGameId = await getTimeToBeatHoursBatch(allGameIds);
+      const [hoursByGameId, genreByGameId] = await Promise.all([
+        getTimeToBeatHoursBatch(allGameIds),
+        getGenresBatch(allGameIds),
+      ]);
 
       for (const game of batch) {
         const igdbGameId = gameIdBySteamAppId.get(game.steamAppId) ?? nameMatchedGameId.get(game.steamAppId);
         const hours = igdbGameId !== undefined ? hoursByGameId.get(igdbGameId) : undefined;
-        if (hours !== undefined) {
-          await prisma.game.update({
-            where: { id: game.id },
-            data: { timeToBeatHours: hours, timeToBeatSource: EstimateSource.IGDB },
-          });
+        const genre = igdbGameId !== undefined ? genreByGameId.get(igdbGameId) : undefined;
+
+        const data: { timeToBeatHours?: number; timeToBeatSource?: string; genre?: string } = {};
+        if (game.timeToBeatHours === null && hours !== undefined) {
+          data.timeToBeatHours = hours;
+          data.timeToBeatSource = EstimateSource.IGDB;
+        }
+        if (game.genre === null && genre !== undefined) {
+          data.genre = genre;
+        }
+
+        if (Object.keys(data).length > 0) {
+          await prisma.game.update({ where: { id: game.id }, data });
           enriched++;
         }
       }

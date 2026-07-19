@@ -51,11 +51,12 @@ score = 5 + completionBonus - recencyPenalty       // base value of 5 keeps scor
   already playing" every week — it nudges toward surfacing backlog variety.
   It decays linearly to zero by day 3, and doesn't apply at all to games
   that have never been played (nothing to be recent about).
-- **Genre-variety bonus** was the third component originally sketched for
-  this formula, but `Game` has no genre field yet (see the unticked "enrich
-  each game with genre metadata" roadmap item) — there's nothing to compute
-  it from. **Not implemented in v1**; noted here so the gap is explicit
-  rather than silently dropped.
+- **Genre-variety bonus** (issue #12): `+3` to a game's score if its genre
+  (from IGDB, see `Game.genre`) **isn't already represented** among the
+  games already placed in this plan; `0` if the genre repeats, or if the
+  game has no known genre. Unlike the other two signals, this one isn't a
+  static per-game number — see "Why variety breaks the simple greedy sort"
+  below.
 
 The knapsack "value" used for selection is this `score`; the "weight" is
 `remainingHours = max(timeToBeatHours - playtimeHours, 0.5)` (floored so a
@@ -94,6 +95,56 @@ Where DP would fit: an exact solution would try every combination (or build
 a table of best-value-per-hour-budget) to guarantee the optimal subset,
 trading simplicity for a guarantee. That's the noted stretch goal — greedy
 can end up a few percent off optimal in adversarial cases, DP never does.
+
+### Why variety breaks the simple greedy sort (issue #12)
+
+The steps above describe a **single static sort**: compute every game's
+score once, sort once, walk the list once. That works because
+completionBonus and recencyPenalty are properties of a game *by itself* —
+they never change based on what else is in the plan.
+
+Genre variety isn't like that. Whether a game's genre "counts" as new
+depends entirely on which genres are already in the plan when that game is
+considered — which depends on the order games get taken in, which is the
+very thing the algorithm is deciding. A single upfront sort can't express
+"give me a bonus if nothing else picked so far shares my genre," because
+"picked so far" doesn't exist yet at sort time.
+
+`generatePlan()` handles this by turning step 2-3 into a loop instead of a
+sort-then-scan:
+
+```
+remaining = every schedulable game, scored (completionBonus/recencyPenalty only)
+chosen = [], seenGenres = {}, hoursUsed = 0
+
+repeat:
+  best = null
+  for each game in remaining that still fits (hoursUsed + remainingHours <= hoursAvailable):
+    varietyBonus = (game.genre is set AND not in seenGenres) ? 3 : 0
+    density = (game.score + varietyBonus) / game.remainingHours
+    keep track of whichever game has the highest density so far
+  if no game fits: stop
+  take `best`, add its genre to seenGenres, hoursUsed += its remainingHours
+```
+
+This re-ranks the *remaining* candidates against the *current* plan on
+every iteration — `O(n²)` instead of `O(n log n)`, which only matters at
+library sizes far larger than a personal Steam backlog will ever reach.
+When no game has a genre (or all games share one), every `varietyBonus` is
+`0` on every iteration, and this loop provably produces the exact same
+picks, in the exact same order, as the original single-sort version — the
+full pre-#12 test suite (`src/engine/__tests__/scheduler.test.ts`) still
+passes unchanged against this version precisely because of that.
+
+**`generatePlanExact()` does not model this.** Extending the DP to account
+for variety would mean tracking *which genres have been used* as part of
+the table's state, not just *how much capacity is left* — the number of
+possible genre-subsets grows exponentially with the number of distinct
+genres, turning simple knapsack into something closer to budgeted maximum
+coverage. That's a materially bigger problem than issue #11 set out to
+solve, so the exact solver stays a pure completion/recency comparison, and
+the comparisons in `scripts/compareSchedulers.ts` only ever measure greedy
+against exact on those two dimensions — not on variety.
 
 ## Worked example
 
@@ -209,4 +260,6 @@ greedy everywhere on the real library again. Both fixes are captured in
 
 Can explain, without notes: what maps to what (item/weight/value/capacity),
 why the near-completion bonus lives in value rather than weight, why
-"skip don't break" matters, and where DP would clearly win over greedy.
+"skip don't break" matters, where DP would clearly win over greedy, and why
+genre variety needed the greedy loop to become iterative instead of a
+single static sort.

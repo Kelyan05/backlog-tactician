@@ -7,6 +7,7 @@ function explain(entry: PlanEntry): string {
   if (entry.completionBonus >= 5) reasons.push('almost done — big finish bonus')
   else if (entry.completionBonus > 0) reasons.push('some progress already banked')
   if (entry.recencyPenalty > 0) reasons.push('played very recently, so slightly deprioritised')
+  if (entry.varietyBonus > 0) reasons.push(`adds a genre${entry.game.genre ? ` (${entry.game.genre})` : ''} not already in this plan`)
   if (reasons.length === 0) reasons.push('fresh pick from your backlog')
   return reasons.join('; ')
 }

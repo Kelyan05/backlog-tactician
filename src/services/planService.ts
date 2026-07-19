@@ -28,6 +28,7 @@ export async function createPlan(userId: number, hoursAvailable: number) {
     timeToBeatHours: game.timeToBeatHours as number,
     playtimeMinutes: game.playtimeMinutes,
     lastPlayedAt: game.lastPlayedAt,
+    genre: game.genre,
   }));
 
   const result = generatePlan(schedulable, hoursAvailable);
@@ -47,6 +48,7 @@ export async function createPlan(userId: number, hoursAvailable: number) {
           score: entry.score,
           completionBonus: entry.completionBonus,
           recencyPenalty: entry.recencyPenalty,
+          varietyBonus: entry.varietyBonus,
         })),
       });
     }

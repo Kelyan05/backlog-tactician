@@ -33,6 +33,7 @@ function GameList() {
       <thead>
         <tr>
           <th>Game</th>
+          <th>Genre</th>
           <th>Time to beat</th>
           <th>Source</th>
         </tr>
@@ -41,6 +42,7 @@ function GameList() {
         {games.map((game) => (
           <tr key={game.id}>
             <td>{game.name}</td>
+            <td>{game.genre ?? '—'}</td>
             <td>{formatHours(game.timeToBeatHours)}</td>
             <td>{game.timeToBeatSource ?? 'NONE'}</td>
           </tr>

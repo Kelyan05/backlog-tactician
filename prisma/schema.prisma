@@ -27,6 +27,7 @@ model Game {
   timeToBeatHours  Float?
   timeToBeatSource String?
   lastPlayedAt     DateTime?
+  genre            String?
   createdAt        DateTime @default(now())
 
   userId Int
@@ -62,6 +63,7 @@ model PlanEntry {
   score           Float
   completionBonus Float
   recencyPenalty  Float
+  varietyBonus    Float
 
   planId Int
   plan   Plan @relation(fields: [planId], references: [id])

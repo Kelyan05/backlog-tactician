@@ -7,6 +7,7 @@ function game(overrides: Partial<SchedulableGame> & Pick<SchedulableGame, "id" |
     timeToBeatHours: 10,
     playtimeMinutes: 0,
     lastPlayedAt: null,
+    genre: null,
     ...overrides,
   };
 }
@@ -74,6 +75,30 @@ describe("generatePlan", () => {
     const second = generatePlan(games, 10, NOW);
 
     expect(second).toEqual(first);
+  });
+
+  it("breaks a density tie in favour of a genre not yet in the plan", () => {
+    // B has slightly higher density than A/C (both tied), so B is taken first.
+    // With B's genre ("RPG") now in the plan, A (also RPG) and C (Puzzle) are
+    // no longer tied: C's variety bonus pushes it ahead for the second slot.
+    const games = [
+      game({ id: 1, name: "A", genre: "RPG", timeToBeatHours: 2, playtimeMinutes: 0 }),
+      game({ id: 2, name: "B", genre: "RPG", timeToBeatHours: 2, playtimeMinutes: 6 }), // slightly ahead of A/C
+      game({ id: 3, name: "C", genre: "Puzzle", timeToBeatHours: 2, playtimeMinutes: 0 }),
+    ];
+
+    const plan = generatePlan(games, 4, NOW);
+
+    expect(plan.entries.map((e) => e.gameId)).toEqual([2, 3]);
+    expect(plan.entries[1]?.varietyBonus).toBeGreaterThan(0);
+  });
+
+  it("gives no variety bonus to a game with no known genre", () => {
+    const games = [game({ id: 1, name: "Solo", genre: null, timeToBeatHours: 2, playtimeMinutes: 0 })];
+
+    const plan = generatePlan(games, 4, NOW);
+
+    expect(plan.entries[0]?.varietyBonus).toBe(0);
   });
 });
 

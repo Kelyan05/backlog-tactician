@@ -4,6 +4,7 @@ const BASE_VALUE = 5;
 const COMPLETION_WEIGHT = 10;
 const RECENCY_WEIGHT = 3;
 const RECENCY_WINDOW_DAYS = 3;
+const GENRE_VARIETY_WEIGHT = 3;
 const MIN_REMAINING_HOURS = 0.5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -13,6 +14,7 @@ export interface SchedulableGame {
   timeToBeatHours: number;
   playtimeMinutes: number;
   lastPlayedAt: Date | null;
+  genre?: string | null;
 }
 
 export interface PlanEntryResult {
@@ -23,6 +25,7 @@ export interface PlanEntryResult {
   score: number;
   completionBonus: number;
   recencyPenalty: number;
+  varietyBonus: number;
 }
 
 export interface SchedulePlan {
@@ -48,30 +51,64 @@ function scoreGame(game: SchedulableGame, now: Date): { score: number; completio
   return { score, completionBonus, recencyPenalty, remainingHours };
 }
 
+// Genre variety is a property of the *plan as a whole* — a game's variety
+// bonus depends on which genres are already in the plan, so it can't be
+// folded into a single static per-game score the way completionBonus and
+// recencyPenalty are. Instead of one upfront sort + linear pass, this
+// repeatedly re-ranks the remaining candidates against the genres chosen
+// so far and picks the single best-fitting one each round — O(n^2) instead
+// of O(n log n), which is fine at real-world library sizes (see docs/scheduling.md).
 export function generatePlan(games: SchedulableGame[], hoursAvailable: number, now: Date = new Date()): SchedulePlan {
-  const scored = games.map((game) => ({ game, ...scoreGame(game, now) }));
-  scored.sort((a, b) => b.score / b.remainingHours - a.score / a.remainingHours);
+  const remaining = games.map((game) => ({ game, ...scoreGame(game, now) }));
 
   const entries: PlanEntryResult[] = [];
+  const seenGenres = new Set<string>();
   let hoursUsed = 0;
 
-  for (const { game, score, completionBonus, recencyPenalty, remainingHours } of scored) {
-    if (hoursUsed + remainingHours > hoursAvailable) {
-      // Skip, don't stop — a smaller game further down the sorted-by-density
-      // list may still fit in whatever budget is left (see docs/scheduling.md).
-      continue;
+  while (remaining.length > 0) {
+    let bestIndex = -1;
+    let bestDensity = -Infinity;
+    let bestVarietyBonus = 0;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const candidate = remaining[i]!;
+      if (hoursUsed + candidate.remainingHours > hoursAvailable) {
+        continue;
+      }
+
+      const isNewGenre = Boolean(candidate.game.genre) && !seenGenres.has(candidate.game.genre as string);
+      const varietyBonus = isNewGenre ? GENRE_VARIETY_WEIGHT : 0;
+      const density = (candidate.score + varietyBonus) / candidate.remainingHours;
+
+      if (density > bestDensity) {
+        bestDensity = density;
+        bestIndex = i;
+        bestVarietyBonus = varietyBonus;
+      }
     }
 
+    if (bestIndex === -1) {
+      // Nothing left fits the remaining budget — smaller games would have
+      // been found by this same scan, so there's nothing more to try.
+      break;
+    }
+
+    const { game, score, completionBonus, recencyPenalty, remainingHours } = remaining[bestIndex]!;
     hoursUsed += remainingHours;
+    if (game.genre) seenGenres.add(game.genre);
+
     entries.push({
       gameId: game.id,
       name: game.name,
       allocatedHours: remainingHours,
       position: entries.length,
-      score,
+      score: score + bestVarietyBonus,
       completionBonus,
       recencyPenalty,
+      varietyBonus: bestVarietyBonus,
     });
+
+    remaining.splice(bestIndex, 1);
   }
 
   return { entries, hoursAvailable, hoursUsed };
@@ -81,6 +118,15 @@ export function generatePlan(games: SchedulableGame[], hoursAvailable: number, n
 // "Greedy vs. exact DP" section. Same in/out shape as generatePlan() so the
 // two are directly comparable; not used in production, only for measuring
 // how close the greedy heuristic gets to optimal (see scripts/compareSchedulers.ts).
+//
+// Deliberately does NOT model genre variety: variety bonus depends on which
+// other items are already chosen, breaking the classic knapsack DP's core
+// assumption that each item's value is independent of the others selected.
+// Modelling it exactly would mean expanding the DP state to track which
+// genres have been used so far — exponential in the number of distinct
+// genres, a materially bigger problem (closer to budgeted maximum coverage
+// than simple knapsack). Out of scope here; this solver answers "how close
+// is greedy to optimal on the completion/recency dimensions alone."
 //
 // Hours are discretised to HOUR_GRANULARITY so the DP table can be indexed by
 // integer capacity units — a real trade-off of exact DP noted in the design doc.
@@ -137,6 +183,7 @@ export function generatePlanExact(games: SchedulableGame[], hoursAvailable: numb
       score,
       completionBonus,
       recencyPenalty,
+      varietyBonus: 0,
     }));
 
   const hoursUsed = entries.reduce((sum, entry) => sum + entry.allocatedHours, 0);
