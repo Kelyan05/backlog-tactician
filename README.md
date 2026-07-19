@@ -14,8 +14,10 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 
 ## ✨ Features
 
-- [ ] Steam sign-in via OpenID and library import
-- [ ] Enrich each game with how-long-to-beat estimates and genre
+- [x] Steam library import (via Web API key + SteamID64 in `.env`)
+- [ ] Steam sign-in via OpenID (stretch — no login flow yet)
+- [x] Enrich each game with how-long-to-beat estimates (IGDB)
+- [ ] Enrich each game with genre metadata
 - [ ] "Hours free this week" input drives a weekly plan
 - [ ] Scheduling engine: fit games into the time budget to maximise a score (variety + finishing near-complete titles)
 - [ ] Mark sessions complete; plan re-optimises around what's left
@@ -111,7 +113,7 @@ Unit tests focus on the scheduling engine — the interesting, testable logic (b
 
 <!-- Fill these in as you go — they double as interview talking points -->
 - Why I modelled scheduling as an optimisation problem, and the trade-off between the greedy heuristic and an exact solution.
-- How I handle Steam API rate limits and cache results.
+- How I handle Steam/IGDB rate limits: the IGDB (Twitch) OAuth token is fetched once via client-credentials and cached in memory until a minute before it expires, instead of re-authenticating per request. Game lookups run in small batches (10 at a time) using a single IN-clause query per batch (`where uid = (...)`) rather than one HTTP round trip per game, with a short pause between batches to stay polite. A `429` gets exactly one retry — honouring `Retry-After` if IGDB sends it, otherwise a fixed backoff — and a game (or batch) that still fails is logged and skipped rather than aborting the whole run, since one bad lookup shouldn't block enrichment for the rest of the library.
 - How I handle partial data: real pipelines never fully cover the input, so every `Game.timeToBeatHours` carries an explicit `timeToBeatSource` — `IGDB` (auto-matched), `MANUAL` (user-entered), or `NONE` (still missing) — rather than treating a bare `null` as the only signal. That makes "missing" a first-class, queryable state (`GET /api/games?missing=true`) instead of something the scheduling engine has to infer, and it means a manual fix is never silently overwritten by a later re-import or re-enrich: Steam's upsert only ever touches `name`/`playtimeMinutes`, and IGDB enrichment only fills games where the estimate is still absent.
 - The PostgreSQL schema and why it's shaped that way: `User` owns `Game`s and `Plan`s (one-to-many each, enforced with foreign keys). `PlanEntry` is a separate associative entity between `Plan` and `Game` rather than a bare join table — `allocatedHours` and `position` are attributes of the pairing itself, not of either side alone, so folding them into `Plan` or `Game` would violate 3NF (a transitive dependency on something other than that table's own key). A unique constraint on `(planId, gameId)` stops the same game being scheduled twice in one plan.
 
