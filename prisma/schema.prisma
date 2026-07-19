@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  games Game[]
+  plans Plan[]
+}
+
+model Game {
+  id               Int      @id @default(autoincrement())
+  steamAppId       Int      @unique
+  name             String
+  playtimeMinutes  Int      @default(0)
+  timeToBeatHours  Float?
+  timeToBeatSource String?
+  createdAt        DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  planEntries PlanEntry[]
+
+  @@index([userId])
+}
+
+model Plan {
+  id        Int      @id @default(autoincrement())
+  weekStart DateTime
+  createdAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  entries PlanEntry[]
+
+  @@index([userId])
+}
+
+// Associative entity between Plan and Game — not a bare join table,
+// since allocatedHours/position are attributes of the pairing itself.
+model PlanEntry {
+  id             Int   @id @default(autoincrement())
+  allocatedHours Float
+  position       Int
+
+  planId Int
+  plan   Plan @relation(fields: [planId], references: [id])
+
+  gameId Int
+  game   Game @relation(fields: [gameId], references: [id])
+
+  @@unique([planId, gameId])
+  @@index([planId])
+  @@index([gameId])
+}
