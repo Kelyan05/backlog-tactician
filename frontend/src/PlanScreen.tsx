@@ -26,6 +26,7 @@ function PlanEntryRow({ entry }: { entry: PlanEntry }) {
     setStatus('saving')
     fetch(`/api/games/${entry.game.id}/play-sessions`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hoursPlayed: value }),
     })
@@ -97,6 +98,7 @@ function PlanScreen() {
     setStatus('loading')
     fetch('/api/plans', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hoursAvailable }),
     })

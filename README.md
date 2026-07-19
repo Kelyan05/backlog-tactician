@@ -15,13 +15,13 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 
 ## ✨ Features
 
-- [x] Steam library import (via Web API key + SteamID64 in `.env`)
-- [ ] Steam sign-in via OpenID (stretch — no login flow yet)
+- [x] Steam library import (via Web API key + per-user SteamID from login)
+- [x] Steam sign-in via OpenID (multi-user — see "Authentication" below)
 - [x] Enrich each game with how-long-to-beat estimates (IGDB)
-- [ ] Enrich each game with genre metadata
-- [ ] "Hours free this week" input drives a weekly plan
-- [ ] Scheduling engine: fit games into the time budget to maximise a score (variety + finishing near-complete titles)
-- [ ] Mark sessions complete; plan re-optimises around what's left
+- [x] Enrich each game with genre metadata
+- [x] "Hours free this week" input drives a weekly plan
+- [x] Scheduling engine: fit games into the time budget to maximise a score (variety + finishing near-complete titles)
+- [x] Mark sessions complete; plan re-optimises around what's left
 - [ ] Responsive UI with per-game progress
 - [x] Persisted user data and play history
 
@@ -103,40 +103,62 @@ docker compose down       # stop the stack, keep the pgdata volume
 docker compose down -v    # stop the stack and delete all data
 ```
 
+### Authentication
+
+The app is multi-user: every `/api/*` route requires a logged-in session
+(`requireAuth` in `src/server.ts`). Log in is Steam OpenID 2.0 — not OAuth2,
+Steam doesn't do that — which redirects your browser to Steam and back:
+
+1. Set in `.env`:
+
+   ```
+   SESSION_SECRET=any-long-random-string
+   APP_BASE_URL=http://localhost:3000
+   FRONTEND_URL=http://localhost:5173
+   ```
+
+2. Open the frontend (`http://localhost:5173`) and click **Log in with
+   Steam**, or hit `http://localhost:3000/auth/steam/login` directly. Steam
+   redirects back to `/auth/steam/callback`, which re-verifies the response
+   with Steam directly (`openid.mode=check_authentication`) before trusting
+   it — an unverified `claimed_id` would let anyone forge a login as any
+   SteamID — then sets a session cookie and redirects to the frontend.
+3. `POST /auth/logout` clears the session; `GET /auth/me` reports the
+   current session's `userId` (or `null`).
+
+**Local testing without a real Steam login:** `POST /auth/dev-login` (only
+mounted when `NODE_ENV !== "production"`) logs you in as a fixed dev user
+without the Steam round trip — there's a matching "Dev login" button on the
+frontend in dev mode. It seeds that user's Steam ID from `.env`'s
+`STEAM_ID`, so the rest of this section still works for local testing.
+
 ### Steam library import
 
-1. Grab a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (any domain name works for personal use).
-2. Find your 64-bit SteamID (e.g. via [steamid.io](https://steamid.io)) — profile must be public, or at least have game details visible, for `GetOwnedGames` to return anything.
-3. Set both in `.env`:
-
-   ```
-   STEAM_API_KEY=your-key-here
-   STEAM_ID=your-steamid64-here
-   ```
-
-4. With the server running, trigger the import:
+1. Grab a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (any domain name works for personal use) and set it in `.env` as `STEAM_API_KEY` — this is the app's own key, shared across all users, not a per-user secret.
+2. Log in (real Steam login, or `/auth/dev-login` for local testing — see above). Your own SteamID comes from that login now, not from `.env`.
+3. With a session cookie, trigger the import:
 
    ```bash
-   curl -X POST http://localhost:3000/api/import/steam
+   curl -b cookies.txt -X POST http://localhost:3000/api/import/steam
    ```
 
-This upserts your owned games by `steamAppId` — safe to re-run any time; it refreshes `name`/`playtimeMinutes` but never touches `timeToBeatHours`/`timeToBeatSource`, so IGDB or manual estimates survive re-imports. **Never commit `.env`** — it holds a real API key and is already gitignored.
+This upserts your owned games by `(userId, steamAppId)` — safe to re-run any time; it refreshes `name`/`playtimeMinutes` but never touches `timeToBeatHours`/`timeToBeatSource`, so IGDB or manual estimates survive re-imports. **Never commit `.env`** — it holds a real API key and is already gitignored.
 
 ## 🧪 Testing
 
 ```bash
-"test": "echo 'Tests ship with the scheduling engine in Week 3 — see roadmap'"
+npm test
 ```
 
-Unit tests focus on the scheduling engine — the interesting, testable logic (budget edge cases, empty backlog, a single game that overruns the week).
+Unit tests focus on the scheduling engine — the interesting, testable logic (budget edge cases, empty backlog, a single game that overruns the week, greedy vs. exact DP, genre variety).
 
 ## 🗺️ Roadmap
 
-- [ ] MVP: import library + generate a plan
-- [ ] Scheduling engine with configurable scoring weights
+- [x] MVP: import library + generate a plan
+- [ ] Scheduling engine with configurable scoring weights (weights exist — `BASE_VALUE`/`COMPLETION_WEIGHT`/etc. in `src/engine/scheduler.ts` — but aren't user-configurable yet)
 - [ ] Deploy with a public demo link
-- [ ] CI pipeline running tests on every push
-- [ ] Stretch: exact DP solver + comparison against the greedy heuristic
+- [x] CI pipeline running tests on every push
+- [x] Stretch: exact DP solver + comparison against the greedy heuristic
 
 ## 📝 Engineering notes
 

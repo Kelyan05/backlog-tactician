@@ -60,8 +60,8 @@ export async function createPlan(userId: number, hoursAvailable: number) {
   });
 }
 
-export async function getPlan(id: number) {
-  return prisma.plan.findUnique({ where: { id }, include: PLAN_INCLUDE });
+export async function getPlan(id: number, userId: number) {
+  return prisma.plan.findFirst({ where: { id, userId }, include: PLAN_INCLUDE });
 }
 
 export async function listPlans(userId: number) {

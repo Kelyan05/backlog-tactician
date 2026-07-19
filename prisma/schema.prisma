@@ -12,7 +12,8 @@ datasource db {
 
 model User {
   id        Int      @id @default(autoincrement())
-  email     String   @unique
+  email     String?  @unique
+  steamId   String?  @unique
   createdAt DateTime @default(now())
 
   games Game[]
@@ -21,7 +22,7 @@ model User {
 
 model Game {
   id               Int      @id @default(autoincrement())
-  steamAppId       Int      @unique
+  steamAppId       Int
   name             String
   playtimeMinutes  Int      @default(0)
   timeToBeatHours  Float?
@@ -35,6 +36,9 @@ model Game {
 
   planEntries PlanEntry[]
 
+  // Scoped per-user, not globally: two different users can each own the
+  // same popular Steam game without colliding on this constraint.
+  @@unique([userId, steamAppId])
   @@index([userId])
 }
 

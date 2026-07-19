@@ -2,7 +2,7 @@
 // different weekly budgets. Not a test — a report, run on demand:
 //   node scripts/compareSchedulers.ts
 import { prisma } from "../src/lib/prisma.ts";
-import { getOrCreateOwner } from "../src/lib/currentUser.ts";
+import { getOrCreateDevOwner } from "../src/lib/currentUser.ts";
 import { generatePlan, generatePlanExact, type SchedulableGame } from "../src/engine/scheduler.ts";
 
 const BUDGETS_TO_TRY = [5, 10, 20, 40];
@@ -12,7 +12,7 @@ function totalScore(entries: { score: number }[]): number {
 }
 
 async function main() {
-  const owner = await getOrCreateOwner();
+  const owner = await getOrCreateDevOwner();
   const games = await prisma.game.findMany({ where: { userId: owner.id, timeToBeatHours: { not: null } } });
 
   const schedulable: SchedulableGame[] = games.map((game) => ({

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../lib/prisma.ts";
 import { EstimateSource } from "../lib/estimateSource.ts";
+import { HttpError } from "../lib/errors.ts";
 
 interface SteamOwnedGame {
   appid: number;
@@ -16,12 +17,13 @@ interface SteamOwnedGamesResponse {
   };
 }
 
-async function fetchOwnedGames(): Promise<SteamOwnedGame[]> {
+// STEAM_API_KEY is the app's own registered key (one per deployment, not
+// per user) — a real server-side secret. steamId identifies *whose*
+// library to fetch, and comes from that user's own Steam login, not env.
+async function fetchOwnedGames(steamId: string): Promise<SteamOwnedGame[]> {
   const apiKey = process.env.STEAM_API_KEY;
-  const steamId = process.env.STEAM_ID;
-
-  if (!apiKey || !steamId) {
-    throw new Error("STEAM_API_KEY and STEAM_ID must be set in .env");
+  if (!apiKey) {
+    throw new Error("STEAM_API_KEY must be set in .env");
   }
 
   const url = new URL("https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/");
@@ -40,16 +42,22 @@ async function fetchOwnedGames(): Promise<SteamOwnedGame[]> {
   return data.response.games ?? [];
 }
 
-// Upserts by steamAppId so re-running never clobbers timeToBeatHours/timeToBeatSource,
-// which come from IGDB or a manual override, not from Steam.
+// Upserts by (userId, steamAppId) so re-running never clobbers
+// timeToBeatHours/timeToBeatSource, which come from IGDB or a manual
+// override, not from Steam.
 export async function importOwnedGames(userId: number): Promise<{ imported: number }> {
-  const games = await fetchOwnedGames();
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  if (!user.steamId) {
+    throw new HttpError(400, "Connect your Steam account before importing your library");
+  }
+
+  const games = await fetchOwnedGames(user.steamId);
 
   for (const game of games) {
     const lastPlayedAt = game.rtime_last_played ? new Date(game.rtime_last_played * 1000) : null;
 
     await prisma.game.upsert({
-      where: { steamAppId: game.appid },
+      where: { userId_steamAppId: { userId, steamAppId: game.appid } },
       update: {
         name: game.name,
         playtimeMinutes: game.playtime_forever,

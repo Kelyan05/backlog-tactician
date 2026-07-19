@@ -39,3 +39,19 @@ form {
 .mark-played input {
   width: 4rem;
 }
+
+.auth-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.steam-login {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.6rem 1.2rem;
+  background: #1b2838;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+}

@@ -1,5 +1,5 @@
 import { prisma } from "../src/lib/prisma.ts";
-import { getOrCreateOwner } from "../src/lib/currentUser.ts";
+import { getOrCreateDevOwner } from "../src/lib/currentUser.ts";
 import { EstimateSource } from "../src/lib/estimateSource.ts";
 
 // Pre-IGDB seed data: pretend these hours were manually looked up before the
@@ -18,11 +18,11 @@ const games = [
 ];
 
 async function main() {
-  const user = await getOrCreateOwner();
+  const user = await getOrCreateDevOwner();
 
   for (const game of games) {
     await prisma.game.upsert({
-      where: { steamAppId: game.steamAppId },
+      where: { userId_steamAppId: { userId: user.id, steamAppId: game.steamAppId } },
       update: { ...game, userId: user.id },
       create: { ...game, userId: user.id },
     });
