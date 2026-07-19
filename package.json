@@ -12,9 +12,11 @@
   },
   "license": "ISC",
   "author": "Kelyan Djomo",
-  "type": "commonjs",
-  "main": "server.ts",
+  "type": "module",
+  "main": "src/server.ts",
   "scripts": {
+    "dev": "node --watch src/server.ts",
+    "build": "tsc",
     "test": "echo 'Tests ship with the scheduling engine — see roadmap'"
   },
   "dependencies": {
