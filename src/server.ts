@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "./lib/prisma.ts";
 import { HttpError } from "./lib/errors.ts";
 import { errorHandler } from "./middleware/errorHandler.ts";
+import { getOrCreateOwner } from "./lib/currentUser.ts";
+import { importOwnedGames } from "./services/steamService.ts";
 
 const gameUpdateSchema = z
   .object({
@@ -51,6 +53,13 @@ app.patch('/api/games/:id', async (req: Request, res: Response) => {
     data,
   });
   res.json(game);
+});
+
+// Import owned games from Steam for the (single, for now) app owner
+app.post('/api/import/steam', async (req: Request, res: Response) => {
+  const owner = await getOrCreateOwner();
+  const result = await importOwnedGames(owner.id);
+  res.json(result);
 });
 
 // Unmatched routes

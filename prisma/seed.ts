@@ -1,4 +1,5 @@
 import { prisma } from "../src/lib/prisma.ts";
+import { getOrCreateOwner } from "../src/lib/currentUser.ts";
 
 const games = [
   { steamAppId: 1145360, name: "Hades", playtimeMinutes: 420, timeToBeatHours: 22, timeToBeatSource: "HowLongToBeat" },
@@ -14,11 +15,7 @@ const games = [
 ];
 
 async function main() {
-  const user = await prisma.user.upsert({
-    where: { email: "dev@backlog-tactician.local" },
-    update: {},
-    create: { email: "dev@backlog-tactician.local" },
-  });
+  const user = await getOrCreateOwner();
 
   for (const game of games) {
     await prisma.game.upsert({
