@@ -112,6 +112,7 @@ Unit tests focus on the scheduling engine — the interesting, testable logic (b
 <!-- Fill these in as you go — they double as interview talking points -->
 - Why I modelled scheduling as an optimisation problem, and the trade-off between the greedy heuristic and an exact solution.
 - How I handle Steam API rate limits and cache results.
+- How I handle partial data: real pipelines never fully cover the input, so every `Game.timeToBeatHours` carries an explicit `timeToBeatSource` — `IGDB` (auto-matched), `MANUAL` (user-entered), or `NONE` (still missing) — rather than treating a bare `null` as the only signal. That makes "missing" a first-class, queryable state (`GET /api/games?missing=true`) instead of something the scheduling engine has to infer, and it means a manual fix is never silently overwritten by a later re-import or re-enrich: Steam's upsert only ever touches `name`/`playtimeMinutes`, and IGDB enrichment only fills games where the estimate is still absent.
 - The PostgreSQL schema and why it's shaped that way: `User` owns `Game`s and `Plan`s (one-to-many each, enforced with foreign keys). `PlanEntry` is a separate associative entity between `Plan` and `Game` rather than a bare join table — `allocatedHours` and `position` are attributes of the pairing itself, not of either side alone, so folding them into `Plan` or `Game` would violate 3NF (a transitive dependency on something other than that table's own key). A unique constraint on `(planId, gameId)` stops the same game being scheduled twice in one plan.
 
 ## 📄 License
