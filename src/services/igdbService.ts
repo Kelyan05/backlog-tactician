@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../lib/prisma.ts";
+import { EstimateSource } from "../lib/estimateSource.ts";
 
 const TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 const API_BASE = "https://api.igdb.com/v4";
@@ -107,7 +108,7 @@ export async function enrichGamesWithTimeToBeat(userId: number): Promise<{ enric
     if (hours !== null) {
       await prisma.game.update({
         where: { id: game.id },
-        data: { timeToBeatHours: hours, timeToBeatSource: "IGDB" },
+        data: { timeToBeatHours: hours, timeToBeatSource: EstimateSource.IGDB },
       });
       enriched++;
     }

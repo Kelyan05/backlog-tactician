@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../lib/prisma.ts";
+import { EstimateSource } from "../lib/estimateSource.ts";
 
 interface SteamOwnedGame {
   appid: number;
@@ -54,6 +55,7 @@ export async function importOwnedGames(userId: number): Promise<{ imported: numb
         steamAppId: game.appid,
         name: game.name,
         playtimeMinutes: game.playtime_forever,
+        timeToBeatSource: EstimateSource.NONE,
         userId,
       },
     });
