@@ -1,4 +1,4 @@
-import { generatePlan, type SchedulableGame } from "../scheduler.ts";
+import { generatePlan, generatePlanExact, type SchedulableGame } from "../scheduler.ts";
 
 const NOW = new Date("2026-07-19T00:00:00Z");
 
@@ -74,5 +74,46 @@ describe("generatePlan", () => {
     const second = generatePlan(games, 10, NOW);
 
     expect(second).toEqual(first);
+  });
+});
+
+describe("generatePlanExact", () => {
+  it("returns an empty plan for an empty backlog", () => {
+    const plan = generatePlanExact([], 10, NOW);
+    expect(plan.entries).toEqual([]);
+    expect(plan.hoursUsed).toBe(0);
+  });
+
+  it("never allocates more hours than the budget, even across rounding", () => {
+    const games = [
+      game({ id: 1, name: "A", timeToBeatHours: 5.6, playtimeMinutes: 0.5 * 60 }),
+      game({ id: 2, name: "B", timeToBeatHours: 5.6, playtimeMinutes: 0.5 * 60 }),
+      game({ id: 3, name: "C", timeToBeatHours: 5.6, playtimeMinutes: 0.5 * 60 }),
+    ];
+
+    const plan = generatePlanExact(games, 10, NOW);
+
+    expect(plan.hoursUsed).toBeLessThanOrEqual(10);
+  });
+
+  it("finds a strictly better plan than greedy on an adversarial input (greedy is not always optimal)", () => {
+    // Big: remaining 10h, score 10 (density 1.0) — fits the budget alone.
+    // DecoyA/B: remaining 5.1h each, score ~5.89 (density ~1.15) — sort ahead of
+    // Big, but the two can't both fit, and neither combines with Big either.
+    // Greedy grabs one decoy and gets stuck with budget left over; the exact
+    // solver recognises Big alone beats any decoy combination.
+    const games = [
+      game({ id: 1, name: "Big", timeToBeatHours: 20, playtimeMinutes: 10 * 60 }),
+      game({ id: 2, name: "DecoyA", timeToBeatHours: 5.6, playtimeMinutes: 0.5 * 60 }),
+      game({ id: 3, name: "DecoyB", timeToBeatHours: 5.6, playtimeMinutes: 0.5 * 60 }),
+    ];
+
+    const greedy = generatePlan(games, 10, NOW);
+    const exact = generatePlanExact(games, 10, NOW);
+
+    const totalScore = (plan: { entries: { score: number }[] }) => plan.entries.reduce((sum, e) => sum + e.score, 0);
+
+    expect(exact.entries.map((e) => e.gameId)).toEqual([1]);
+    expect(totalScore(exact)).toBeGreaterThan(totalScore(greedy));
   });
 });

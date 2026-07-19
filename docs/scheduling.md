@@ -146,6 +146,65 @@ one.
   invisible to the user; the simplicity of greedy is worth more than the
   guarantee. DP is the documented stretch goal, not the v1 choice.
 
+### Measuring the gap for real (issue #11)
+
+`generatePlanExact()` in `src/engine/scheduler.ts` implements the DP solve
+above, and `scripts/compareSchedulers.ts` runs both solvers over the real
+library at a few weekly budgets:
+
+```
+budget(h) | greedy score | exact score | gap | greedy hoursUsed | exact hoursUsed
+----------|--------------|-------------|-----|-------------------|------------------
+        5 |       150.00 |      150.00 | 0.0% |               5.0 |              5.0
+       10 |       177.27 |      177.27 | 0.0% |               9.5 |              9.5
+       20 |       204.66 |      204.66 | 0.0% |              19.6 |             19.7
+       40 |       237.92 |      237.92 | 0.0% |              39.6 |             39.8
+```
+
+On this real library, greedy already matches exact at every budget tried —
+in practice the library is varied enough (games at many different
+remaining-hours values) that greedy's density sort rarely gets trapped the
+way the adversarial case above describes. That's a real, useful finding on
+its own: it's evidence the "greedy is good enough" call for v1 wasn't just
+theoretical hand-waving.
+
+That doesn't mean the failure mode isn't real, though — a constructed
+adversarial case proves it:
+
+```
+Budget: 10h
+Big:     remaining 10h, score 10    (density 1.0)
+DecoyA:  remaining 5.1h, score 5.89 (density 1.15)
+DecoyB:  remaining 5.1h, score 5.89 (density 1.15)
+```
+
+Both decoys sort ahead of Big (higher density), but the two decoys together
+need 10.2h (over budget), and neither combines with Big either. Greedy
+takes one decoy and stops there — score 5.89, with 4.9h of the week left on
+the table. The exact solver correctly finds that Big alone (score 10, fully
+using the budget) beats any decoy combination. This is exactly the
+"single expensive high-density decoy blocks a better answer" shape greedy
+can't recover from, covered by
+`src/engine/__tests__/scheduler.test.ts`'s `generatePlanExact` suite.
+
+**A bug the comparison caught:** the first version of `generatePlanExact`
+discretised hours to 0.5h units for the DP table but then reported each
+game's original, un-rounded `remainingHours` as its allocated hours. That
+mismatch let two decoy items whose *true* combined weight was 10.2h both
+get taken — each individually rounded down to a 5.0h table weight, summing
+to exactly 10 discretised units, while the real hours used came to 10.2h,
+over budget. The fix: always derive `allocatedHours` from the same rounded
+weight the DP actually reasoned about, and round weights **up** rather than
+to-nearest, so a game can never discretise to look cheaper than it truly
+is. Running the comparison at a coarser 0.5h granularity afterwards
+surfaced a second, subtler effect of that same rounding-up conservatism:
+exact could score *below* greedy on a couple of real budgets (e.g. -2% at
+20h), because rounding every weight up can make the "exact" solver reject a
+combination that would truly have fit. Shrinking the granularity to 0.05h
+(3 minutes) — still a trivially small DP table — made exact match or beat
+greedy everywhere on the real library again. Both fixes are captured in
+`generatePlanExact`'s comments, not just this note.
+
 ## Checkpoint
 
 Can explain, without notes: what maps to what (item/weight/value/capacity),
