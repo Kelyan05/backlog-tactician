@@ -20,7 +20,7 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 - [ ] Scheduling engine: fit games into the time budget to maximise a score (variety + finishing near-complete titles)
 - [ ] Mark sessions complete; plan re-optimises around what's left
 - [ ] Responsive UI with per-game progress
-- [ ] Persisted user data and play history
+- [x] Persisted user data and play history
 
 ## 🧰 Tech stack
 
@@ -93,7 +93,7 @@ Unit tests focus on the scheduling engine — the interesting, testable logic (b
 <!-- Fill these in as you go — they double as interview talking points -->
 - Why I modelled scheduling as an optimisation problem, and the trade-off between the greedy heuristic and an exact solution.
 - How I handle Steam API rate limits and cache results.
-- The PostgreSQL schema and why it's shaped that way.
+- The PostgreSQL schema and why it's shaped that way: `User` owns `Game`s and `Plan`s (one-to-many each, enforced with foreign keys). `PlanEntry` is a separate associative entity between `Plan` and `Game` rather than a bare join table — `allocatedHours` and `position` are attributes of the pairing itself, not of either side alone, so folding them into `Plan` or `Game` would violate 3NF (a transitive dependency on something other than that table's own key). A unique constraint on `(planId, gameId)` stops the same game being scheduled twice in one plan.
 
 ## 📄 License
 
