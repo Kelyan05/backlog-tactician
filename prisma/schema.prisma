@@ -57,6 +57,12 @@ model PlanEntry {
   allocatedHours Float
   position       Int
 
+  // Score breakdown captured at generation time, so "why this was picked"
+  // reflects the plan as it was actually built, not a live recomputation.
+  score           Float
+  completionBonus Float
+  recencyPenalty  Float
+
   planId Int
   plan   Plan @relation(fields: [planId], references: [id])
 

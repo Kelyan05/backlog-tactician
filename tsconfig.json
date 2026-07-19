@@ -10,5 +10,6 @@
     "types": ["node", "jest"],
     "strict": true,
     "skipLibCheck": true
-  }
+  },
+  "exclude": ["node_modules", "frontend"]
 }

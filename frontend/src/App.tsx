@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Game } from './types'
+import PlanScreen from './PlanScreen'
 import './App.css'
 
 function formatHours(hours: number | null): string {
@@ -53,6 +54,8 @@ function App() {
   return (
     <main>
       <h1>Backlog Tactician</h1>
+      <PlanScreen />
+      <h2>Your library</h2>
       <GameList />
     </main>
   )

@@ -16,3 +16,15 @@ td {
   padding: 0.5rem;
   border-bottom: 1px solid #ddd;
 }
+
+form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.why {
+  color: #666;
+  font-size: 0.9em;
+}

@@ -44,6 +44,9 @@ export async function createPlan(userId: number, hoursAvailable: number) {
           gameId: entry.gameId,
           allocatedHours: entry.allocatedHours,
           position: entry.position,
+          score: entry.score,
+          completionBonus: entry.completionBonus,
+          recencyPenalty: entry.recencyPenalty,
         })),
       });
     }
