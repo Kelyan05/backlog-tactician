@@ -2,50 +2,78 @@
 
 > Turn your gaming backlog into an optimised weekly play plan.
 
-![Status](https://img.shields.io/badge/status-in%20progress-yellow)
-![CI](https://github.com/Kelyan05/backlog-tactician/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/Kelyan05/backlog-tactician/actions/workflows/ci.yml/badge.svg)](https://github.com/Kelyan05/backlog-tactician/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
-Every gamer has a backlog of 40+ unplayed games and no idea what to actually play next. **Backlog Tactician** connects to your Steam library, pulls how-long-to-beat estimates, and — given the hours you have free this week — builds a play schedule that maximises variety and prioritises finishing games you're already close to completing. Under the hood, "what to play next" is modelled as a constrained optimisation problem, not a plain list.
+**[Scheduling engine design doc](docs/scheduling.md)** · **[Engineering notes](#-engineering-notes)**
 
-## 🎬 Demo
+Every gamer has a backlog of 40+ unplayed games and no idea what to actually play next. **Backlog Tactician** logs you in with Steam, imports your library, enriches it with how-long-to-beat estimates, and — given the hours you have free this week — builds a play schedule that maximises variety and prioritises finishing games you're already close to completing.
 
-*Demo GIF and live link coming once the scheduling engine ships (Week 3 of the build schedule).*
+Under the hood, "what to play next" is modelled as a **0/1 knapsack problem**, and the repo ships **both** a greedy heuristic and an exact dynamic-programming solver, plus a benchmark script that measures how far greedy actually falls from optimal on a real library.
+
+## 🧠 The interesting part: greedy vs. exact
+
+| Knapsack concept | Backlog Tactician |
+|---|---|
+| Item | A game |
+| Weight | Remaining hours to finish (`timeToBeatHours` − hours already played) |
+| Capacity | Hours free this week |
+| Value | A computed priority score |
+| Goal | Pick the subset that fits the capacity and maximises total value |
+
+The priority score is a transparent weighted sum with named constants in [`src/engine/scheduler.ts`](src/engine/scheduler.ts):
+
+```
+score = BASE_VALUE (5)
+      + completionRatio × COMPLETION_WEIGHT (10)    ← reward near-finished games
+      − recencyPenalty  × RECENCY_WEIGHT (3)        ← don't re-suggest what you just played
+      + varietyBonus    × GENRE_VARIETY_WEIGHT (3)  ← avoid five shooters in one week
+```
+
+Genre variety is a property of the **plan as a whole**, not of any single game — a game's variety bonus depends on which genres are already selected. That's why selection re-ranks remaining candidates each round (O(n²)) instead of doing one upfront sort (O(n log n)); at real library sizes the difference is irrelevant and the plans are noticeably better.
+
+`generatePlan()` (greedy) ships by default. `generatePlanExact()` (DP) is also implemented, and [`scripts/compareSchedulers.ts`](scripts/compareSchedulers.ts) runs both across several weekly budgets and prints the score gap — so the choice to ship the approximation is measured, not assumed.
+
+The engine is a **pure function** — games and a budget in, a plan out, no DB and no HTTP — which is what makes it trivially unit-testable. Full write-up in [docs/scheduling.md](docs/scheduling.md).
 
 ## ✨ Features
 
-- [x] Steam library import (via Web API key + per-user SteamID from login)
-- [x] Steam sign-in via OpenID (multi-user — see "Authentication" below)
-- [x] Enrich each game with how-long-to-beat estimates (IGDB)
-- [x] Enrich each game with genre metadata
-- [x] "Hours free this week" input drives a weekly plan
-- [x] Scheduling engine: fit games into the time budget to maximise a score (variety + finishing near-complete titles)
+- [x] Steam sign-in via OpenID 2.0 (multi-user)
+- [x] Steam library import
+- [x] Time-to-beat + genre enrichment via IGDB
+- [x] "Hours free this week" drives a weekly plan
+- [x] Scheduling engine — greedy heuristic **and** exact DP solver
+- [x] Genre variety constraint
 - [x] Mark sessions complete; plan re-optimises around what's left
+- [x] Jest test suite running under GitHub Actions CI
+- [ ] Deployed public demo
 - [ ] Responsive UI with per-game progress
-- [x] Persisted user data and play history
+- [ ] User-configurable scoring weights
 
 ## 🧰 Tech stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Frontend | React + TypeScript (Vite) | Typed components, fast dev loop |
-| Backend | Node.js + Express + TypeScript | Shared language across the stack |
-| Database | PostgreSQL | Relational data (users, games, sessions) |
-| Integrations | Steam Web API, how-long-to-beat data | Real library + completion-time data |
-| Cache | Redis | Avoid re-hitting external APIs |
-| Infra | Docker, GitHub Actions | Reproducible builds + CI on every push |
-| Testing | Jest | Unit tests for the scheduling engine |
+| Layer | Choice | Status | Why |
+|---|---|---|---|
+| Backend | Node.js + Express + TypeScript | ✅ Built | Typed end to end |
+| Database | PostgreSQL + Prisma | ✅ Built | Relational data, migrations, type-safe queries |
+| Frontend | React + TypeScript (Vite) | ✅ Built | Typed components, fast dev loop |
+| Auth | Steam OpenID 2.0 + sessions | ✅ Built | Steam doesn't support OAuth2 |
+| Integrations | Steam Web API, IGDB | ✅ Built | Real library + completion-time data |
+| Testing | Jest | ✅ Built | Unit tests on the scheduling engine |
+| CI/CD | GitHub Actions | ✅ Built | Tests + build on every push |
+| Infra | Docker Compose | ✅ Built | One-command API + DB stack |
+| Cache | Redis | 🔜 Planned | Avoid re-hitting external APIs |
 
 ## 🏗️ Architecture
 
 ```
-Steam API ──▶ Ingest service ──▶ PostgreSQL ──▶ Scheduling engine ──▶ Express API ──▶ React UI
-                                     ▲                                     │
-                                     └───────────── play history ◀────────┘
+Steam OpenID ──▶ session
+                    │
+Steam API ──▶ Ingest ──▶ PostgreSQL ──▶ Scheduling engine ──▶ Express API ──▶ React UI
+IGDB API  ──▶ Enrich ──▶     ▲                                     │
+                             └────────────── play history ◀────────┘
 ```
-
-The **scheduling engine** is the heart of the project: given a set of games (each with an estimated time-to-finish and a computed priority) and a weekly time budget, it selects and orders a subset to maximise total value — a variation on the knapsack problem solved with a greedy heuristic (and a note in the code on where an exact DP solution would fit).
 
 ## 🚀 Getting started
 
@@ -53,96 +81,54 @@ The **scheduling engine** is the heart of the project: given a set of games (eac
 git clone https://github.com/Kelyan05/backlog-tactician.git
 cd backlog-tactician
 npm install
-npm run dev        # starts the Express server on localhost:3000
+docker compose up -d db     # Postgres 16 on localhost:5432
+npm run dev                 # API on localhost:3000
 ```
 
-Then open `http://localhost:5173`.
-
-### PostgreSQL (local)
-
 ```bash
-docker compose up -d db          # starts Postgres 16 on localhost:5432
-docker compose exec db psql -U backlog -d backlog_tactician
+cd frontend && npm install && npm run dev   # UI on localhost:5173
 ```
 
 Set `DATABASE_URL` in `.env` to `postgresql://backlog:backlog@localhost:5432/backlog_tactician`.
 
-To stop and remove the container (data persists in the `pgdata` volume):
-
-```bash
-docker compose down
-```
-
-Practice SQL (create/insert/join, one-to-many `games` → `sessions`) lives in [`sql/practice_warmup.sql`](sql/practice_warmup.sql).
-
-### Docker Compose (full API + DB stack)
-
-For running the whole backend without a local Node install:
+### Full stack in one command
 
 ```bash
 docker compose up --build
 ```
 
-One command brings up Postgres and the API together: the `api` service waits
-for the database's healthcheck, then applies any pending migrations
-(`prisma migrate deploy`) before starting the server — so a completely fresh
-`pgdata` volume is never a manual extra step. The API reaches Postgres over
-the compose network at `db:5432`, not `localhost`, since containers resolve
-each other by service name rather than the host's loopback address.
-
-Real secrets (`STEAM_API_KEY`, `STEAM_ID`, `IGDB_CLIENT_ID`,
-`IGDB_CLIENT_SECRET`) still come from your local `.env` via `env_file`; only
-`DATABASE_URL` is overridden to point at the in-network `db` host.
-
-The frontend isn't containerized yet — it's a Vite dev server whose proxy
-currently points at `localhost:3000`, so for now run it separately with
-`cd frontend && npm run dev`.
+The `api` service waits for the database healthcheck, then applies pending migrations (`prisma migrate deploy`) before starting — so a fresh `pgdata` volume is never a manual extra step. Containers reach Postgres at `db:5432`, not `localhost`, since compose services resolve each other by service name. Secrets come from your local `.env` via `env_file`; only `DATABASE_URL` is overridden. The frontend isn't containerised yet — run it separately.
 
 ```bash
-docker compose down       # stop the stack, keep the pgdata volume
-docker compose down -v    # stop the stack and delete all data
+docker compose down       # stop, keep data
+docker compose down -v    # stop and delete all data
 ```
 
 ### Authentication
 
-The app is multi-user: every `/api/*` route requires a logged-in session
-(`requireAuth` in `src/server.ts`). Log in is Steam OpenID 2.0 — not OAuth2,
-Steam doesn't do that — which redirects your browser to Steam and back:
+Every `/api/*` route requires a logged-in session. Login is **Steam OpenID 2.0** — not OAuth2; Steam doesn't support it.
 
-1. Set in `.env`:
+```env
+SESSION_SECRET=any-long-random-string
+APP_BASE_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5173
+```
 
-   ```
-   SESSION_SECRET=any-long-random-string
-   APP_BASE_URL=http://localhost:3000
-   FRONTEND_URL=http://localhost:5173
-   ```
+Click **Log in with Steam**, or hit `/auth/steam/login`. Steam redirects back to `/auth/steam/callback`, which **re-verifies the response with Steam** (`openid.mode=check_authentication`) before trusting it — without that check, anyone could forge a login as any SteamID. `POST /auth/logout` clears the session; `GET /auth/me` reports the current user.
 
-2. Open the frontend (`http://localhost:5173`) and click **Log in with
-   Steam**, or hit `http://localhost:3000/auth/steam/login` directly. Steam
-   redirects back to `/auth/steam/callback`, which re-verifies the response
-   with Steam directly (`openid.mode=check_authentication`) before trusting
-   it — an unverified `claimed_id` would let anyone forge a login as any
-   SteamID — then sets a session cookie and redirects to the frontend.
-3. `POST /auth/logout` clears the session; `GET /auth/me` reports the
-   current session's `userId` (or `null`).
-
-**Local testing without a real Steam login:** `POST /auth/dev-login` (only
-mounted when `NODE_ENV !== "production"`) logs you in as a fixed dev user
-without the Steam round trip — there's a matching "Dev login" button on the
-frontend in dev mode. It seeds that user's Steam ID from `.env`'s
-`STEAM_ID`, so the rest of this section still works for local testing.
+For local work, `POST /auth/dev-login` (mounted only when `NODE_ENV !== "production"`) skips the Steam round trip.
 
 ### Steam library import
 
-1. Grab a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (any domain name works for personal use) and set it in `.env` as `STEAM_API_KEY` — this is the app's own key, shared across all users, not a per-user secret.
-2. Log in (real Steam login, or `/auth/dev-login` for local testing — see above). Your own SteamID comes from that login now, not from `.env`.
-3. With a session cookie, trigger the import:
+1. Get a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) and set `STEAM_API_KEY` in `.env` — this is the app's key, shared across users, not a per-user secret.
+2. Log in. Your SteamID comes from that login.
+3. Trigger the import:
 
-   ```bash
-   curl -b cookies.txt -X POST http://localhost:3000/api/import/steam
-   ```
+```bash
+curl -b cookies.txt -X POST http://localhost:3000/api/import/steam
+```
 
-This upserts your owned games by `(userId, steamAppId)` — safe to re-run any time; it refreshes `name`/`playtimeMinutes` but never touches `timeToBeatHours`/`timeToBeatSource`, so IGDB or manual estimates survive re-imports. **Never commit `.env`** — it holds a real API key and is already gitignored.
+Games are upserted by `(userId, steamAppId)` — safe to re-run. It refreshes `name`/`playtimeMinutes` but never touches `timeToBeatHours`/`timeToBeatSource`, so IGDB and manual estimates survive re-imports. **Never commit `.env`.**
 
 ## 🧪 Testing
 
@@ -150,23 +136,25 @@ This upserts your owned games by `(userId, steamAppId)` — safe to re-run any t
 npm test
 ```
 
-Unit tests focus on the scheduling engine — the interesting, testable logic (budget edge cases, empty backlog, a single game that overruns the week, greedy vs. exact DP, genre variety).
-
-## 🗺️ Roadmap
-
-- [x] MVP: import library + generate a plan
-- [ ] Scheduling engine with configurable scoring weights (weights exist — `BASE_VALUE`/`COMPLETION_WEIGHT`/etc. in `src/engine/scheduler.ts` — but aren't user-configurable yet)
-- [ ] Deploy with a public demo link
-- [x] CI pipeline running tests on every push
-- [x] Stretch: exact DP solver + comparison against the greedy heuristic
+Tests target the scheduling engine — budget edge cases, an empty backlog, a single game that overruns the week, greedy vs. exact DP, and genre variety. CI runs `npm test` and `npm run build` on every push and pull request.
 
 ## 📝 Engineering notes
 
-<!-- Fill these in as you go — they double as interview talking points -->
-- Why I modelled scheduling as an optimisation problem, and the trade-off between the greedy heuristic and an exact solution.
-- How I handle Steam/IGDB rate limits: the IGDB (Twitch) OAuth token is fetched once via client-credentials and cached in memory until a minute before it expires, instead of re-authenticating per request. Game lookups run in small batches (10 at a time) using a single IN-clause query per batch (`where uid = (...)`) rather than one HTTP round trip per game, with a short pause between batches to stay polite. A `429` gets exactly one retry — honouring `Retry-After` if IGDB sends it, otherwise a fixed backoff — and a game (or batch) that still fails is logged and skipped rather than aborting the whole run, since one bad lookup shouldn't block enrichment for the rest of the library.
-- How I handle partial data: real pipelines never fully cover the input, so every `Game.timeToBeatHours` carries an explicit `timeToBeatSource` — `IGDB` (auto-matched), `MANUAL` (user-entered), or `NONE` (still missing) — rather than treating a bare `null` as the only signal. That makes "missing" a first-class, queryable state (`GET /api/games?missing=true`) instead of something the scheduling engine has to infer, and it means a manual fix is never silently overwritten by a later re-import or re-enrich: Steam's upsert only ever touches `name`/`playtimeMinutes`, and IGDB enrichment only fills games where the estimate is still absent.
-- The PostgreSQL schema and why it's shaped that way: `User` owns `Game`s and `Plan`s (one-to-many each, enforced with foreign keys). `PlanEntry` is a separate associative entity between `Plan` and `Game` rather than a bare join table — `allocatedHours` and `position` are attributes of the pairing itself, not of either side alone, so folding them into `Plan` or `Game` would violate 3NF (a transitive dependency on something other than that table's own key). A unique constraint on `(planId, gameId)` stops the same game being scheduled twice in one plan.
+*The reasoning behind the design decisions — the parts worth discussing.*
+
+**Why an optimisation problem, and why ship the approximation.** Greedy sorts by value density and takes what fits: O(n log n), easy to explain, not always optimal. Exact DP over integer hour-buckets guarantees the best combination but costs more time and memory. Both are implemented; [`scripts/compareSchedulers.ts`](scripts/compareSchedulers.ts) measures the gap on a real library across several budgets. Shipping greedy is a decision backed by numbers rather than an assumption.
+
+**Rate limits and API politeness.** The IGDB (Twitch) OAuth token is fetched once via client-credentials and cached in memory until a minute before expiry, instead of re-authenticating per request. Lookups run in batches of 10 using a single IN-clause query per batch rather than one HTTP round trip per game, with a short pause between batches. A `429` gets exactly one retry — honouring `Retry-After` when sent, otherwise a fixed backoff — and anything that still fails is logged and skipped rather than aborting the run, since one bad lookup shouldn't block enrichment for the whole library.
+
+**Partial data as a first-class state.** Real pipelines never fully cover their input, so every `timeToBeatHours` carries an explicit `timeToBeatSource`: `IGDB` (auto-matched), `MANUAL` (user-entered), or `NONE` (still missing) — rather than treating a bare `null` as the only signal. That makes "missing" queryable (`GET /api/games?missing=true`) instead of something the engine has to infer, and it means a manual fix is never silently overwritten: Steam's upsert only touches `name`/`playtimeMinutes`, and IGDB enrichment only fills estimates that are still absent.
+
+**Schema shape.** `User` owns `Game`s and `Plan`s (one-to-many, enforced with foreign keys). `PlanEntry` is a separate associative entity between `Plan` and `Game` rather than a bare join table — `allocatedHours` and `position` are attributes of the *pairing*, not of either side alone, so folding them into `Plan` or `Game` would violate 3NF. A unique constraint on `(planId, gameId)` stops the same game being scheduled twice in one plan.
+
+**Verifying the Steam callback.** OpenID 2.0 hands your app a `claimed_id` in a redirect. Trusting it directly would let anyone log in as any SteamID by crafting a URL, so the callback re-posts the response to Steam with `openid.mode=check_authentication` and only creates a session if Steam confirms it.
+
+## Author
+
+**Kelyan Djomo** — [GitHub](https://github.com/Kelyan05) · [LinkedIn](https://linkedin.com/in/kelyan-djomo)
 
 ## 📄 License
 
