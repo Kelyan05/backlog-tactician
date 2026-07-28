@@ -6,6 +6,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
+https://backlog-tactician.vercel.app/
+
 **[Scheduling engine design doc](docs/scheduling.md)** · **[Engineering notes](#-engineering-notes)**
 
 Every gamer has a backlog of 40+ unplayed games and no idea what to actually play next. **Backlog Tactician** logs you in with Steam, imports your library, enriches it with how-long-to-beat estimates, and — given the hours you have free this week — builds a play schedule that maximises variety and prioritises finishing games you're already close to completing.
