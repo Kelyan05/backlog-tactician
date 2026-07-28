@@ -97,7 +97,9 @@ Set `DATABASE_URL` in `.env` to `postgresql://backlog:backlog@localhost:5432/bac
 docker compose up --build
 ```
 
-The `api` service waits for the database healthcheck, then applies pending migrations (`prisma migrate deploy`) before starting — so a fresh `pgdata` volume is never a manual extra step. Containers reach Postgres at `db:5432`, not `localhost`, since compose services resolve each other by service name. Secrets come from your local `.env` via `env_file`; only `DATABASE_URL` is overridden. The frontend isn't containerised yet — run it separately.
+The `api` service waits for the database healthcheck, then applies pending migrations (`prisma migrate deploy`) before starting — so a fresh `pgdata` volume is never a manual extra step. Containers reach Postgres at `db:5432`, not `localhost`, since compose services resolve each other by service name. Secrets come from your local `.env` via `env_file`; only `DATABASE_URL` is overridden.
+
+The `Dockerfile` builds the frontend and bundles the static output into the same image the API runs from, and serves it directly — no separate frontend container, no CORS setup, and the session cookie just works since browser and API share one origin. Visit `http://localhost:3000`. `cookie.secure` is `"auto"`, not `true`, so the same image works over plain HTTP here and over HTTPS behind a real deploy's reverse proxy without a config change.
 
 ```bash
 docker compose down       # stop, keep data

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import path from "node:path";
 import express, { type Express, type Request, type Response } from "express";
 import session from "express-session";
 import { z } from "zod";
@@ -37,6 +38,13 @@ const gameUpdateSchema = z
 const app: Express = express();
 const port = 3000; // The port your express server will be running on.
 
+// Real deploys sit behind a TLS-terminating reverse proxy (Fly/Railway/Render
+// all work this way), so Express itself sees a plain HTTP connection — trust
+// proxy makes it read "X-Forwarded-Proto" instead, which cookie.secure:"auto"
+// below then checks per-request.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -49,15 +57,12 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      // "auto" (not "true"): matches the real connection security per-request,
+      // so this also works for a plain-HTTP docker-compose smoke test locally.
+      secure: process.env.NODE_ENV === "production" ? "auto" : false,
     },
   }),
 );
-
-// Basic route
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello, TypeScript + Express!');
-});
 
 // Health route
 app.get('/health', (req: Request, res: Response) => {
@@ -222,6 +227,22 @@ app.get('/api/plans/:id', async (req: Request, res: Response) => {
 
   res.json(plan);
 });
+
+// In production the built frontend ships in the same image/container as the
+// API (see Dockerfile), so the browser talks to one origin and the session
+// cookie's sameSite=lax just works — no CORS setup needed. In dev, Vite's own
+// server + proxy plays the same role instead.
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = path.join(import.meta.dirname, "../frontend/dist");
+  app.use(express.static(frontendDist));
+  app.use((req: Request, res: Response, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api") || req.path.startsWith("/auth")) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 // Unmatched routes
 app.use((req: Request, res: Response) => {
