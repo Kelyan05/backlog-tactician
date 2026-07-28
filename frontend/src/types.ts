@@ -1,5 +1,6 @@
 export interface Game {
   id: number;
+  steamAppId: number;
   name: string;
   playtimeMinutes: number;
   timeToBeatHours: number | null;
