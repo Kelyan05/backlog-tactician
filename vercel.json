@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npx prisma generate && npx prisma migrate deploy && cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    { "source": "/health", "destination": "/api" },
+    { "source": "/auth/:path*", "destination": "/api" },
+    { "source": "/api/:path*", "destination": "/api" }
+  ]
+}

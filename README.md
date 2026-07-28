@@ -106,6 +106,37 @@ docker compose down       # stop, keep data
 docker compose down -v    # stop and delete all data
 ```
 
+## ☁️ Deploying
+
+The `Dockerfile` alone is enough for any host that runs a Dockerfile against a
+persistent Postgres (Render, Fly, Railway) — no extra config needed.
+
+**Vercel** doesn't run a persistent server or host a database, so that shape
+needs two adjustments, both already wired up:
+
+- `src/app.ts` holds the actual Express app with no `app.listen()`; `src/server.ts`
+  (Docker/local dev) and `api/index.ts` (Vercel's serverless entry point) each
+  import it and use it differently. `vercel.json` rewrites `/health`, `/auth/*`,
+  and `/api/*` to that one function — Vercel serves the frontend's static build
+  (`frontend/dist`, per `outputDirectory`) directly, so the Express static-file
+  block in `app.ts` skips itself when `process.env.VERCEL` is set.
+- Postgres has to come from somewhere else — [Neon](https://neon.tech) is the
+  natural fit (it's what Vercel's own Postgres offering runs on) and has a free
+  tier. Use Neon's **pooled** connection string (not the direct one) for
+  `DATABASE_URL`: serverless functions open a fresh connection per invocation,
+  and a normal Postgres connection limit runs out fast under that pattern —
+  pooling is what keeps it working.
+
+Env vars to set in the Vercel dashboard: `DATABASE_URL` (Neon, pooled),
+`SESSION_SECRET`, `STEAM_API_KEY`, `STEAM_ID`, `IGDB_CLIENT_ID`,
+`IGDB_CLIENT_SECRET`, `APP_BASE_URL` and `FRONTEND_URL` (both your Vercel
+production URL — same origin, see "Authentication" above for why), and
+`NODE_ENV=production`. `vercel.json`'s `buildCommand` runs
+`prisma migrate deploy` as part of every build, so schema changes apply
+automatically on push — same "never a manual extra step" property the Docker
+path has, just via a different mechanism (there's no Docker `CMD` to hook it
+into here).
+
 ### Authentication
 
 Every `/api/*` route requires a logged-in session. Login is **Steam OpenID 2.0** — not OAuth2; Steam doesn't support it.

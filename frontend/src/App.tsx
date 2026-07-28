@@ -13,10 +13,9 @@ function formatHours(hours: number | null): string {
 }
 
 function SourceBadge({ source }: { source: string | null }) {
-  if (source === "IGDB")
-    return <span className="badge badge--good">✓ IGDB</span>;
+  if (source === "IGDB") return <span className="badge badge--good">IGDB</span>;
   if (source === "MANUAL")
-    return <span className="badge badge--accent">✎ Manual</span>;
+    return <span className="badge badge--accent">Manual</span>;
   return <span className="badge badge--muted">– Missing</span>;
 }
 
