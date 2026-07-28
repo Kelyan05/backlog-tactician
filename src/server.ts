@@ -2,6 +2,8 @@ import "dotenv/config";
 import path from "node:path";
 import express, { type Express, type Request, type Response } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { Pool } from "pg";
 import { z } from "zod";
 import { prisma } from "./lib/prisma.ts";
 import { HttpError } from "./lib/errors.ts";
@@ -49,8 +51,21 @@ if (process.env.NODE_ENV === "production") {
 // Middleware to parse JSON bodies
 app.use(express.json());
 
+// express-session's default MemoryStore leaks memory and doesn't survive a
+// restart or scale past one process — fine for local dev, not for a real
+// deploy. Postgres is already provisioned, so sessions live there instead;
+// createTableIfMissing means no separate migration is needed for it.
+const sessionStore =
+  process.env.NODE_ENV === "production"
+    ? new (connectPgSimple(session))({
+        pool: new Pool({ connectionString: process.env.DATABASE_URL }),
+        createTableIfMissing: true,
+      })
+    : undefined;
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET ?? "dev-secret-change-me",
     resave: false,
     saveUninitialized: false,
