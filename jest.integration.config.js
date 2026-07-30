@@ -9,8 +9,5 @@ export default {
     "^.+\\.ts$": ["ts-jest", { useESM: true }],
   },
   testEnvironment: "node",
-  // Integration tests hit a real Postgres (see jest.integration.config.js) —
-  // kept out of the default fast/pure-function run so `npm test` never
-  // needs a database.
-  testPathIgnorePatterns: ["/node_modules/", "\\.integration\\.test\\.ts$"],
+  testMatch: ["**/*.integration.test.ts"],
 };

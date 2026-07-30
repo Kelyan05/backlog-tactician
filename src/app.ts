@@ -5,6 +5,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import * as Sentry from "@sentry/node";
 import { Pool } from "pg";
 import { z } from "zod";
 import { prisma } from "./lib/prisma.ts";
@@ -20,6 +21,13 @@ import { createPlan, getPlan, listPlans } from "./services/planService.ts";
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "http://localhost:3000";
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
+
+// A real, genuine no-op without SENTRY_DSN set — this repo has no Sentry
+// account behind it, so error reporting stays inert until someone adds one.
+// init() must run before the routes below so it can actually instrument them.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV });
+}
 
 if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET must be set in production");
@@ -299,6 +307,12 @@ if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Not found' });
 });
+
+// Reports to Sentry (no-op if SENTRY_DSN was never set) before falling
+// through to our own error handler, which still owns the actual response.
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
 
 // Central error handler — must be registered last
 app.use(errorHandler);

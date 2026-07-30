@@ -17,11 +17,13 @@
   "scripts": {
     "dev": "node --watch src/server.ts",
     "build": "tsc",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.integration.config.js --runInBand"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@sentry/node": "^10.69.0",
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -38,8 +40,10 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.0",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.1",
     "jest": "^30.4.2",
     "prisma": "^7.8.0",
+    "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",
     "typescript": "^6.0.3"
   }

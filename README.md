@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
-**[Live demo](https://backlog-tactician.vercel.app)** · **[Scheduling engine design doc](docs/scheduling.md)** · **[Engineering notes](#-engineering-notes)**
+**[Live demo](https://backlog-tactician.vercel.app)** · **[API reference](openapi.yaml)** · **[Scheduling engine design doc](docs/scheduling.md)** · **[Engineering notes](#-engineering-notes)**
 
 Every gamer has a backlog of 40+ unplayed games and no idea what to actually play next. **Backlog Tactician** logs you in with Steam, imports your library, enriches it with how-long-to-beat estimates, and — given the hours you have free this week — builds a play schedule that maximises variety and prioritises finishing games you're already close to completing.
 
@@ -46,10 +46,11 @@ The engine is a **pure function** — games and a budget in, a plan out, no DB a
 - [x] Scheduling engine — greedy heuristic **and** exact DP solver
 - [x] Genre variety constraint
 - [x] Mark sessions complete; plan re-optimises around what's left
-- [x] Jest test suite + frontend lint/build, both gating CI on every push
+- [x] Jest unit tests + real Postgres integration tests (incl. the IDOR fix, actually exercised) + frontend lint/build, all gating CI on every push
 - [x] Deployed public demo (Vercel + Neon; Docker/Render also supported — see "Deploying")
 - [x] Responsive card-grid UI with per-game playtime progress
 - [x] Security headers (`helmet`) and rate limiting on auth + the Steam/IGDB import endpoints
+- [x] OpenAPI 3.0 spec covering every route
 - [ ] User-configurable scoring weights
 
 ## 🧰 Tech stack
@@ -61,8 +62,10 @@ The engine is a **pure function** — games and a budget in, a plan out, no DB a
 | Frontend | React + TypeScript (Vite) | ✅ Built | Typed components, fast dev loop |
 | Auth | Steam OpenID 2.0 + sessions | ✅ Built | Steam doesn't support OAuth2 |
 | Integrations | Steam Web API, IGDB | ✅ Built | Real library + completion-time data |
-| Testing | Jest | ✅ Built | Unit tests on the scheduling engine |
-| CI | GitHub Actions | ✅ Built | Backend tests/build + frontend lint/build, on every push |
+| Testing | Jest + Supertest | ✅ Built | Pure-function unit tests + real-Postgres integration tests |
+| API docs | OpenAPI 3.0 | ✅ Built | [`openapi.yaml`](openapi.yaml) — every route, schema, and status code |
+| Monitoring | Sentry (`@sentry/node`) | ✅ Wired, opt-in | Inert until `SENTRY_DSN` is set — no account behind this repo yet |
+| CI | GitHub Actions | ✅ Built | Backend tests/build/integration + frontend lint/build, on every push |
 | CD | Vercel (GitHub-integrated) | ✅ Built | Auto-deploys `main` on push; Docker/Render supported too |
 | Security | `helmet`, `express-rate-limit` | ✅ Built | Standard security headers; rate limits on auth + external-API calls |
 | Infra | Docker Compose | ✅ Built | One-command API + DB stack |
@@ -138,7 +141,13 @@ production URL — same origin, see "Authentication" above for why), and
 `prisma migrate deploy` as part of every build, so schema changes apply
 automatically on push — same "never a manual extra step" property the Docker
 path has, just via a different mechanism (there's no Docker `CMD` to hook it
-into here).
+into here). `SENTRY_DSN` is optional — see "Error monitoring" below.
+
+### Error monitoring
+
+`@sentry/node` is wired in but stays completely inert — no `Sentry.init()`
+call even happens — unless `SENTRY_DSN` is set. Add one from your own Sentry
+project to turn it on; nothing else changes either way.
 
 ### Authentication
 
@@ -166,13 +175,29 @@ curl -b cookies.txt -X POST http://localhost:3000/api/import/steam
 
 Games are upserted by `(userId, steamAppId)` — safe to re-run. It refreshes `name`/`playtimeMinutes` but never touches `timeToBeatHours`/`timeToBeatSource`, so IGDB and manual estimates survive re-imports. **Never commit `.env`.**
 
+## 📋 API reference
+
+Every route, request/response shape, and status code is in [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0) — paste its raw GitHub URL into [editor.swagger.io](https://editor.swagger.io) for an interactive view, or open it directly; GitHub renders it with syntax highlighting.
+
 ## 🧪 Testing
 
 ```bash
-npm test
+npm test                  # fast, pure-function unit tests — no database needed
+npm run test:integration  # real routes against a real Postgres
 ```
 
-Tests target the scheduling engine — budget edge cases, an empty backlog, a single game that overruns the week, greedy vs. exact DP, and genre variety. CI runs `npm test` and `npm run build` on every push and pull request.
+`npm test` targets the scheduling engine — budget edge cases, an empty backlog, a single game that overruns the week, greedy vs. exact DP, and genre variety. It's deliberately DB-free, which is what keeps it fast enough to run on every save.
+
+`npm run test:integration` runs `supertest` against the actual Express app — session handling, auth gating, and a cross-user ownership check (the IDOR fix mentioned below, actually exercised rather than just described). It needs `DATABASE_URL` pointed at a real, migrated, **throwaway** Postgres — never your dev database, since tests create and delete rows. Locally:
+
+```bash
+docker run -d --name backlog-test-pg -e POSTGRES_USER=backlog -e POSTGRES_PASSWORD=backlog -e POSTGRES_DB=backlog_test -p 5433:5432 postgres:16
+DATABASE_URL="postgresql://backlog:backlog@localhost:5433/backlog_test" npx prisma migrate deploy
+DATABASE_URL="postgresql://backlog:backlog@localhost:5433/backlog_test" npm run test:integration
+docker rm -f backlog-test-pg
+```
+
+CI does the equivalent with a disposable `postgres:16` service container, so this runs on every push and pull request too — alongside `npm test`, `npm run build`, and the frontend's lint/typecheck/build.
 
 ## 📝 Engineering notes
 

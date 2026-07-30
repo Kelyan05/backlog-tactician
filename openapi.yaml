@@ -1,0 +1,329 @@
+openapi: 3.0.3
+info:
+  title: Backlog Tactician API
+  version: "1.0.0"
+  description: >
+    Steam backlog planner API. Every /api/* route requires a logged-in
+    session (cookie-based, see /auth/*); Steam login is OpenID 2.0, not
+    OAuth2. Full write-up: https://github.com/Kelyan05/backlog-tactician
+servers:
+  - url: https://backlog-tactician.vercel.app
+    description: Production
+  - url: http://localhost:3000
+    description: Local dev
+
+tags:
+  - name: Auth
+  - name: Games
+  - name: Plans
+
+paths:
+  /health:
+    get:
+      tags: [Auth]
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/steam/login:
+    get:
+      tags: [Auth]
+      summary: Start Steam OpenID 2.0 login
+      description: Redirects the browser to Steam. Not callable from JS/fetch — this is a full-page navigation.
+      security: []
+      responses:
+        "302":
+          description: Redirect to steamcommunity.com
+
+  /auth/steam/callback:
+    get:
+      tags: [Auth]
+      summary: Steam OpenID callback
+      description: >
+        Steam redirects here after login. The response is re-verified with
+        Steam directly (openid.mode=check_authentication) before a session
+        is created — an unverified claimed_id would let anyone forge a login
+        as any SteamID.
+      security: []
+      responses:
+        "302":
+          description: Session created; redirects to FRONTEND_URL
+        "401":
+          description: Verification failed
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Error" } }
+
+  /auth/dev-login:
+    post:
+      tags: [Auth]
+      summary: Log in as a fixed dev user (never mounted in production)
+      security: []
+      responses:
+        "200":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: integer }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Clear the session
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current session's user id, if any
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: [integer, "null"]
+
+  /api/games:
+    get:
+      tags: [Games]
+      summary: List the logged-in user's games
+      parameters:
+        - name: missing
+          in: query
+          description: If "true", only games with no time-to-beat estimate yet
+          schema: { type: string, enum: ["true"] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Game" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/games/{id}:
+    patch:
+      tags: [Games]
+      summary: Manually override a game's fields (e.g. a time-to-beat estimate IGDB never found)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                playtimeMinutes: { type: integer, minimum: 0 }
+                timeToBeatHours: { type: [number, "null"], exclusiveMinimum: 0 }
+      responses:
+        "200":
+          description: Updated game
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Game" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/games/{id}/play-sessions:
+    post:
+      tags: [Games]
+      summary: Log a play session (advances playtime + lastPlayedAt so the next plan reflects real progress)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hoursPlayed]
+              properties:
+                hoursPlayed: { type: number, exclusiveMinimum: 0 }
+      responses:
+        "200":
+          description: Updated game
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Game" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/import/steam:
+    post:
+      tags: [Games]
+      summary: Import owned games from Steam (rate-limited — 5 requests / 15 min)
+      responses:
+        "200": { description: Import result }
+        "400": { description: "Steam account not connected yet (no steamId on this user)" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /api/enrich/igdb:
+    post:
+      tags: [Games]
+      summary: Fill in missing time-to-beat/genre via IGDB (rate-limited — 5 requests / 15 min)
+      responses:
+        "200": { description: Enrichment result }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /api/plans:
+    post:
+      tags: [Plans]
+      summary: Generate a weekly plan (greedy scheduler) from the current library and persist it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hoursAvailable]
+              properties:
+                hoursAvailable: { type: number, exclusiveMinimum: 0 }
+      responses:
+        "201":
+          description: Created plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Plans]
+      summary: List all of this user's plans, most recent first
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Plan" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/plans/{id}:
+    get:
+      tags: [Plans]
+      summary: Fetch a single plan with its ordered entries
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  parameters:
+    GameId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json: { schema: { $ref: "#/components/schemas/Error" } }
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json: { schema: { $ref: "#/components/schemas/Error" } }
+    NotFound:
+      description: Not found, or not owned by the logged-in user (ownership never leaks as a 403 — see engineering notes)
+      content:
+        application/json: { schema: { $ref: "#/components/schemas/Error" } }
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json: { schema: { $ref: "#/components/schemas/Error" } }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    Game:
+      type: object
+      properties:
+        id: { type: integer }
+        steamAppId: { type: integer }
+        name: { type: string }
+        playtimeMinutes: { type: integer }
+        timeToBeatHours: { type: [number, "null"] }
+        timeToBeatSource: { type: [string, "null"], enum: [IGDB, MANUAL, NONE, null] }
+        lastPlayedAt: { type: [string, "null"], format: date-time }
+        genre: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        userId: { type: integer }
+
+    PlanEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        allocatedHours: { type: number }
+        position: { type: integer }
+        score: { type: number }
+        completionBonus: { type: number }
+        recencyPenalty: { type: number }
+        varietyBonus: { type: number }
+        gameId: { type: integer }
+        game: { $ref: "#/components/schemas/Game" }
+
+    Plan:
+      type: object
+      properties:
+        id: { type: integer }
+        weekStart: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        userId: { type: integer }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/PlanEntry" }
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+
+security:
+  - sessionCookie: []
