@@ -3,6 +3,8 @@ import path from "node:path";
 import express, { type Express, type Request, type Response } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { Pool } from "pg";
 import { z } from "zod";
 import { prisma } from "./lib/prisma.ts";
@@ -46,6 +48,39 @@ export const app: Express = express();
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
+
+// img-src needs the Steam CDN allowed explicitly (helmet's default CSP is
+// same-origin only) — everything else stays at helmet's default, which is
+// what actually gives us X-Frame-Options, Strict-Transport-Security, etc.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "img-src": ["'self'", "data:", "https://cdn.cloudflare.steamstatic.com"],
+      },
+    },
+  }),
+);
+
+// Auth endpoints get a generous but real limit — Steam's own callback
+// verification already rejects forged logins cryptographically, this is
+// defense in depth against brute-forcing that check.
+app.use(
+  "/auth",
+  rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false }),
+);
+
+// Import/enrich call real third-party APIs (Steam Web API, IGDB) that are
+// themselves rate-limited — this stops a buggy client or an impatient
+// double-click from hammering them well before IGDB's own 429s would.
+const externalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many import/enrich requests — please wait a few minutes and try again." },
+});
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -198,14 +233,14 @@ app.post('/api/games/:id/play-sessions', async (req: Request, res: Response) => 
 });
 
 // Import owned games from Steam for the logged-in user
-app.post('/api/import/steam', async (req: Request, res: Response) => {
+app.post('/api/import/steam', externalApiLimiter, async (req: Request, res: Response) => {
   const userId = req.session.userId as number;
   const result = await importOwnedGames(userId);
   res.json(result);
 });
 
 // Enrich games missing a time-to-beat estimate or genre via IGDB
-app.post('/api/enrich/igdb', async (req: Request, res: Response) => {
+app.post('/api/enrich/igdb', externalApiLimiter, async (req: Request, res: Response) => {
   const userId = req.session.userId as number;
   const result = await enrichGames(userId);
   res.json(result);

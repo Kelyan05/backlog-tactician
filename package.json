@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/Kelyan05/backlog-tactician.git"
   },
-  "license": "ISC",
+  "license": "MIT",
   "author": "Kelyan Djomo",
   "type": "module",
   "main": "src/server.ts",
@@ -25,7 +25,9 @@
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.1",
     "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
     "pg": "^8.22.0",
     "zod": "^4.4.3"
   },

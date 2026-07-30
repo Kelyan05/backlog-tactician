@@ -3,12 +3,10 @@
 > Turn your gaming backlog into an optimised weekly play plan.
 
 [![CI](https://github.com/Kelyan05/backlog-tactician/actions/workflows/ci.yml/badge.svg)](https://github.com/Kelyan05/backlog-tactician/actions/workflows/ci.yml)
-![License](https://img.shields.io/badge/license-MIT-blue)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
-https://backlog-tactician.vercel.app/
-
-**[Scheduling engine design doc](docs/scheduling.md)** · **[Engineering notes](#-engineering-notes)**
+**[Live demo](https://backlog-tactician.vercel.app)** · **[Scheduling engine design doc](docs/scheduling.md)** · **[Engineering notes](#-engineering-notes)**
 
 Every gamer has a backlog of 40+ unplayed games and no idea what to actually play next. **Backlog Tactician** logs you in with Steam, imports your library, enriches it with how-long-to-beat estimates, and — given the hours you have free this week — builds a play schedule that maximises variety and prioritises finishing games you're already close to completing.
 
@@ -48,9 +46,10 @@ The engine is a **pure function** — games and a budget in, a plan out, no DB a
 - [x] Scheduling engine — greedy heuristic **and** exact DP solver
 - [x] Genre variety constraint
 - [x] Mark sessions complete; plan re-optimises around what's left
-- [x] Jest test suite running under GitHub Actions CI
-- [ ] Deployed public demo
-- [ ] Responsive UI with per-game progress
+- [x] Jest test suite + frontend lint/build, both gating CI on every push
+- [x] Deployed public demo (Vercel + Neon; Docker/Render also supported — see "Deploying")
+- [x] Responsive card-grid UI with per-game playtime progress
+- [x] Security headers (`helmet`) and rate limiting on auth + the Steam/IGDB import endpoints
 - [ ] User-configurable scoring weights
 
 ## 🧰 Tech stack
@@ -63,7 +62,9 @@ The engine is a **pure function** — games and a budget in, a plan out, no DB a
 | Auth | Steam OpenID 2.0 + sessions | ✅ Built | Steam doesn't support OAuth2 |
 | Integrations | Steam Web API, IGDB | ✅ Built | Real library + completion-time data |
 | Testing | Jest | ✅ Built | Unit tests on the scheduling engine |
-| CI/CD | GitHub Actions | ✅ Built | Tests + build on every push |
+| CI | GitHub Actions | ✅ Built | Backend tests/build + frontend lint/build, on every push |
+| CD | Vercel (GitHub-integrated) | ✅ Built | Auto-deploys `main` on push; Docker/Render supported too |
+| Security | `helmet`, `express-rate-limit` | ✅ Built | Standard security headers; rate limits on auth + external-API calls |
 | Infra | Docker Compose | ✅ Built | One-command API + DB stack |
 | Cache | Redis | 🔜 Planned | Avoid re-hitting external APIs |
 
