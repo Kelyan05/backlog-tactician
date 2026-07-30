@@ -49,6 +49,7 @@ The engine is a **pure function** — games and a budget in, a plan out, no DB a
 - [x] Jest unit tests + real Postgres integration tests (incl. the IDOR fix, actually exercised) + frontend lint/build, all gating CI on every push
 - [x] Deployed public demo (Vercel + Neon; Docker/Render also supported — see "Deploying")
 - [x] Responsive card-grid UI with per-game playtime progress
+- [x] Landing page + Open Graph/Twitter card previews for the live link
 - [x] Security headers (`helmet`) and rate limiting on auth + the Steam/IGDB import endpoints
 - [x] OpenAPI 3.0 spec covering every route
 - [ ] User-configurable scoring weights
