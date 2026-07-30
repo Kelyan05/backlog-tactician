@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Game } from "./types";
 import PlanScreen from "./PlanScreen";
+import LandingPage from "./LandingPage";
 import "./App.css";
 
 function coverUrl(game: Game): string {
@@ -278,37 +279,6 @@ function AuthBar({ onLoggedOut }: { onLoggedOut: () => void }) {
   );
 }
 
-function LoginScreen() {
-  return (
-    <div className="login-shell">
-      <div className="login-card">
-        <h1>Backlog Tactician</h1>
-        <p>
-          Sign in with Steam to import your library and build a weekly plan.
-        </p>
-        <a className="steam-login" href="/auth/steam/login">
-          Log in with Steam
-        </a>
-        {import.meta.env.DEV && (
-          <div className="dev-login">
-            <button
-              type="button"
-              onClick={() => {
-                fetch("/auth/dev-login", {
-                  method: "POST",
-                  credentials: "include",
-                }).then(() => window.location.reload());
-              }}
-            >
-              Dev login (local testing only)
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function App() {
   const [userId, setUserId] = useState<number | null>(null);
   const [status, setStatus] = useState<"loading" | "ready">("loading");
@@ -323,7 +293,7 @@ function App() {
   }, []);
 
   if (status === "loading") return null;
-  if (userId === null) return <LoginScreen />;
+  if (userId === null) return <LandingPage />;
 
   return (
     <main>
