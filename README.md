@@ -12,6 +12,8 @@ Every gamer has a backlog of 40+ unplayed games and no idea what to actually pla
 
 Under the hood, "what to play next" is modelled as a **0/1 knapsack problem**, and the repo ships **both** a greedy heuristic and an exact dynamic-programming solver, plus a benchmark script that measures how far greedy actually falls from optimal on a real library.
 
+![Backlog Tactician — library view with a real Steam library imported and enriched](docs/screenshot.png)
+
 ## 🧠 The interesting part: greedy vs. exact
 
 | Knapsack concept | Backlog Tactician |
@@ -168,7 +170,9 @@ For local work, `POST /auth/dev-login` (mounted only when `NODE_ENV !== "product
 
 1. Get a Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) and set `STEAM_API_KEY` in `.env` — this is the app's key, shared across users, not a per-user secret.
 2. Log in. Your SteamID comes from that login.
-3. Trigger the import:
+3. Click **Import Steam library**, then **Enrich with IGDB**, in the UI — both are rate-limited (5 requests / 15 min, since they call real external APIs) and show inline errors if a key is missing.
+
+Equivalent from the API directly, if you're testing without a browser:
 
 ```bash
 curl -b cookies.txt -X POST http://localhost:3000/api/import/steam
